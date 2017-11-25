@@ -481,7 +481,7 @@ class testWalkthrough(unittest.TestCase):
         p.wait()
         p = pexpect.spawn(
             'python examples/sta_ap_mode.py -m')
-        sleep(10)
+        sleep(8)
         p.sendline('py sta1.params[\'associatedTo\']')
         p.expect('Station ap2: ap2-wlan0:192.168.1.10')
         p.expect(self.prompt)
