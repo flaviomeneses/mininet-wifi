@@ -163,10 +163,13 @@ function wifi_deps {
     pushd $MININET_DIR/mininet-wifi/iw
     sudo make && make install
     cd $BUILD_DIR
+    if [ -d mac80211_hwsim_mgmt ]; then
+      echo "Removing mac80211_hwsim_mgmt..."
+      rm -r mac80211_hwsim_mgmt
+    fi
     git clone --depth=1 https://github.com/ramonfontes/mac80211_hwsim_mgmt.git
     pushd $BUILD_DIR/mac80211_hwsim_mgmt
     sudo make install
-    #popd
 }
 
 # Install Mininet developer dependencies
@@ -209,7 +212,7 @@ function of13 {
     echo "Installing OpenFlow 1.3 soft switch implementation..."
     cd $BUILD_DIR/
     $install  git-core autoconf automake autotools-dev pkg-config \
-        make gcc g++ libtool libc6-dev cmake libpcap-dev libxerces-c2-dev  \
+        make gcc g++ libtool libc6-dev cmake libpcap-dev libxerces-c3-dev  \
         unzip libpcre3-dev flex bison libboost-dev
 
     if [ ! -d "ofsoftswitch13" ]; then
@@ -224,17 +227,8 @@ function of13 {
     fi
 
     # Install netbee
-    if [ "$DIST" = "Ubuntu" ] && version_ge $RELEASE 14.04; then
-        NBEESRC="nbeesrc-feb-24-2015"
-        NBEEDIR="netbee"
-    else
-        NBEESRC="nbeesrc-jan-10-2013"
-        NBEEDIR="nbeesrc-jan-10-2013"
-    fi
-
-    NBEEURL=${NBEEURL:-http://www.nbee.org/download/}
-    wget -nc ${NBEEURL}${NBEESRC}.zip
-    unzip ${NBEESRC}.zip
+    NBEEDIR="netbee"
+    git clone https://github.com/ramonfontes/netbee.git
     cd ${NBEEDIR}/src
     cmake .
     make
@@ -452,27 +446,20 @@ function ryu {
 
     # install Ryu dependencies"
     $install autoconf automake g++ libtool python make
-    if [ "$DIST" = "Ubuntu" ]; then
-        $install libxml2 libxslt-dev python-pip python-dev
-        sudo pip install gevent
-    elif [ "$DIST" = "Debian" ]; then
-        $install libxml2 libxslt-dev python-pip python-dev
-        sudo pip install gevent
+    if [ "$DIST" = "Ubuntu" -o "$DIST" = "Debian" ]; then
+        $install gcc python-pip python-dev libffi-dev libssl-dev \
+            libxml2-dev libxslt1-dev zlib1g-dev
     fi
 
-    # if needed, update python-six
-    SIX_VER=`pip show six | grep Version | awk '{print $2}'`
-    if version_ge 1.7.0 $SIX_VER; then
-        echo "Installing python-six version 1.7.0..."
-        sudo pip install -I six==1.7.0
-    fi
     # fetch RYU
     cd $BUILD_DIR/
-    git clone --depth=1 https://github.com/osrg/ryu.git ryu
+    git clone git://github.com/osrg/ryu.git ryu
     cd ryu
 
     # install ryu
-    sudo pip install .
+    sudo pip install -r tools/pip-requires -r tools/optional-requires \
+        -r tools/test-requires
+    sudo python setup.py install
 
     # Add symbolic link to /usr/bin
     sudo ln -s ./bin/ryu-manager /usr/local/bin/ryu-manager
@@ -717,6 +704,10 @@ function modprobe {
 function wmediumd {
     echo "Installing wmediumd sources into $BUILD_DIR/wmediumd"
     cd $BUILD_DIR
+    if [ -d wmediumd ]; then
+      echo "Removing wmediumd..."
+      rm -r wmediumd
+    fi
     $install git make libevent-dev libconfig-dev libnl-3-dev libnl-genl-3-dev
     git clone --depth=1 -b mininet-wifi https://github.com/ramonfontes/wmediumd.git
     pushd $BUILD_DIR/wmediumd

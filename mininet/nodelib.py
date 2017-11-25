@@ -34,7 +34,7 @@ class LinuxBridge( Switch ):
 
     def start( self, _controllers ):
         "Start Linux bridge"
-        self.cmd( 'ifconfig', self, 'down' )
+        self.cmd( 'ip link set', self, 'down' )
         self.cmd( 'brctl delbr', self )
         self.cmd( 'brctl addbr', self )
         if self.stp:
@@ -43,12 +43,12 @@ class LinuxBridge( Switch ):
         for i in self.intfList():
             if self.name in i.name:
                 self.cmd( 'brctl addif', self, i )
-        self.cmd( 'ifconfig', self, 'up' )
+        self.cmd( 'ip link set', self, 'up' )
 
     def stop( self, deleteIntfs=True ):
         """Stop Linux bridge
            deleteIntfs: delete interfaces? (True)"""
-        self.cmd( 'ifconfig', self, 'down' )
+        self.cmd( 'ip link set', self, 'down' )
         self.cmd( 'brctl delbr', self )
         super( LinuxBridge, self ).stop( deleteIntfs )
 
@@ -130,7 +130,7 @@ class NAT( Node ):
         "Stop NAT/forwarding between Mininet and external network"
         # Remote NAT rules
         self.cmd( 'iptables -D FORWARD',
-                   '-i', self.localIntf, '-d', self.subnet, '-j DROP' )
+                  '-i', self.localIntf, '-d', self.subnet, '-j DROP' )
         self.cmd( 'iptables -D FORWARD',
                   '-i', self.localIntf, '-s', self.subnet, '-j ACCEPT' )
         self.cmd( 'iptables -D FORWARD',

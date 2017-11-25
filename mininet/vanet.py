@@ -4,17 +4,17 @@ author: Ramon Fontes (ramonrf@dca.fee.unicamp.br)
         ramonfontes.com
 
 """
-
 from __future__ import division
-from pylab import math, cos, sin, np
 from math import atan2
-from pylab import ginput as ginp
-from mininet.wifiPlot import plot2d, plot3d
-from random import randrange
+from time import sleep
 import warnings
-import matplotlib.cbook
 import threading
-from mininet.wifiMobility import mobility
+from random import randrange
+import matplotlib.cbook
+from pylab import ginput as ginp
+from pylab import math, cos, sin, np
+
+from mininet.wifiPlot import plot2d
 
 try:
     warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
@@ -35,35 +35,39 @@ class vanet(object):
     time_per_iteraiton = 100 * math.pow(10, -3)
 
     def __init__(self, **params):
-        thread = threading.Thread(name='vanet', target=self.start, kwargs=dict(params,))
+        thread = threading.Thread(name='vanet', target=self.start,
+                                  kwargs=dict(params,))
         thread.daemon = True
         thread.start()
 
-    def start(self, stations, aps, nroads, srcConn, dstConn, MAX_X, MAX_Y, **params):
+    def start(self, **params):
         'start topology'
-        cars = stations
+        from mininet.wifiMobility import mobility
+        cars = params['stations']
+        aps = params['aps']
         mobility.addNodes(cars, aps)
-        [self.road.append(x) for x in range(0, nroads)]
-        [self.points.append(x) for x in range(0, nroads)]
-        [self.totalRoads.append(x) for x in range(0, nroads)]
-        plot2d.instantiateGraph(MAX_X, MAX_Y)
+        [self.road.append(x) for x in range(0, params['nroads'])]
+        [self.points.append(x) for x in range(0, params['nroads'])]
+        [self.totalRoads.append(x) for x in range(0, params['nroads'])]
+        plot2d.instantiateGraph(params['MIN_X'], params['MIN_Y'], params['MAX_X'], params['MAX_Y'])
 
-        try:
-            self.display_grid(aps, srcConn, dstConn, nroads)
-            self.display_cars(cars)
-            plot2d.plotGraph(cars, [], [])
-            self.setWifiParameters()
-            while True:
-                [self.scatter, self.com_lines] = self.simulate_car_movement(cars, aps, self.scatter, self.com_lines)
-                mobility.continueParams
-        except:
-            pass
-        
-    def setWifiParameters(self):
+        self.display_grid(aps, params['connections'], params['nroads'])
+        self.display_cars(cars)
+        plot2d.plotGraph(cars, [])
+        self.setWifiParameters(mobility)
+        while True:
+            [self.scatter, self.com_lines] = \
+                self.simulate_car_movement(cars, aps, self.scatter,
+                                           self.com_lines, mobility)
+            mobility.continueParams
+
+    @classmethod
+    def setWifiParameters(cls, mobility):
         thread = threading.Thread(name='wifiParameters', target=mobility.parameters)
         thread.start()
 
-    def get_line(self, x1, y1, x2, y2):
+    @classmethod
+    def get_line(cls, x1, y1, x2, y2):
         points = []
         issteep = abs(y2 - y1) > abs(x2 - x1)
         if issteep:
@@ -97,7 +101,7 @@ class vanet(object):
             points.reverse()
         return points
 
-    def display_grid(self, baseStations, srcConn, dstConn, nroads):
+    def display_grid(self, baseStations, connections, nroads):
 
         for n in range(nroads):
             if n == 0:
@@ -112,35 +116,46 @@ class vanet(object):
             x1 = [x[0] for x in self.points[n]]
             y1 = [x[1] for x in self.points[n]]
             if n == 0:
-                self.points[n] = self.get_line(int(x1[0]), int(y1[0]), int(x1[1]), int(y1[1]))  # Get all the points in the line
+                # Get all the points in the line
+                self.points[n] = self.get_line(int(x1[0]), int(y1[0]),
+                                               int(x1[1]), int(y1[1]))
             else:
-                self.points[n] = self.get_line(int(self.all_points[n][0]), int(self.all_points[n][1]), int(p[0][0]), int(p[0][1]))  # Get all the points in the line
-
+                self.points[n] = self.get_line(int(self.all_points[n][0]),
+                                               int(self.all_points[n][1]),
+                                               int(p[0][0]), int(p[0][1]))
             x1 = [x[0] for x in self.points[n]]
             y1 = [x[1] for x in self.points[n]]
 
             self.interX[n] = x1
             self.interY[n] = y1
 
-            self.road[n] = plot2d.plotLine2d(x1, y1, color='g')  # Create a line object with the x y values of the points in a line
+            # Create a line object with the x y values of the points in a line
+            self.road[n] = plot2d.plotLine2d(x1, y1, color='g')
             plot2d.plotLine(self.road[n])
 
         for bs in baseStations:
             bs.properties = ginp(1)[0]
-            bs_x = bs.properties[0]
-            bs_y = bs.properties[1]
+            bs_x = '%.2f' % bs.properties[0]
+            bs_y = '%.2f' % bs.properties[1]
             self.scatter = plot2d.plotScatter(bs_x, bs_y)
             bs.params['position'] = bs_x, bs_y, 0
+            bs.setPositionWmediumd()
+            plot2d.instantiateNode(bs)
             plot2d.instantiateAnnotate(bs)
             plot2d.instantiateCircle(bs)
             plot2d.text(bs)
             plot2d.circle(bs)
             plot2d.plotDraw()
 
-        for c in range(0, len(srcConn)):
-            line = plot2d.plotLine2d([srcConn[c].params['position'][0], dstConn[c].params['position'][0]], \
-                                   [srcConn[c].params['position'][1], dstConn[c].params['position'][1]], 'b', ls='dashed')
-            plot2d.plotLine(line)
+        sleep(1)
+        if 'src' in connections:
+            for c in range(0, len(connections['src'])):
+                line = plot2d.plotLine2d([connections['src'][c].params['position'][0],
+                                          connections['dst'][c].params['position'][0]], \
+                                       [connections['src'][c].params['position'][1],
+                                        connections['dst'][c].params['position'][1]],
+                                         'b', ls='dashed')
+                plot2d.plotLine(line)
 
     def display_cars(self, cars):
 
@@ -201,29 +216,34 @@ class vanet(object):
         # plot cars
         self.scatter = plot2d.plotScatter(points[0], points[1])
 
-    def lineX(self, line_data):
+    @classmethod
+    def lineX(cls, line_data):
         """ get the minimum and maximums of the line"""
         x_min = min(line_data[0])
         x_max = max(line_data[0])
         return x_min, x_max
 
-    def lineY(self, line_data):
+    @classmethod
+    def lineY(cls, line_data):
         """ get the minimum and maximums of the line"""
         y_min = min(line_data[1])
         y_max = max(line_data[1])
         return y_min, y_max
 
-    def speed(self, car):
+    @classmethod
+    def speed(cls, car):
         car.speed = car.max_speed, car.min_speed
 
-    def calculateAngle(self, line_data):
+    @classmethod
+    def calculateAngle(cls, line_data):
         """Calculate Angle"""
         xdiff = line_data[0][-1] - line_data[0][0]
         ydiff = line_data[1][-1] - line_data[1][0]
         ang = atan2(ydiff, xdiff)
         return ang
 
-    def carProperties(self, point, ang, x_min, x_max, y_min, y_max):
+    @classmethod
+    def carProperties(cls, point, ang, x_min, x_max, y_min, y_max):
         temp = []
         temp.append(point[0])
         temp.append(point[1])
@@ -234,7 +254,8 @@ class vanet(object):
         temp.append(y_max)
         return temp
 
-    def carPoint(self, point):
+    @classmethod
+    def carPoint(cls, point):
         temp = []
         temp.append(point[0])
         temp.append(point[1])
@@ -264,17 +285,19 @@ class vanet(object):
             for n in reversed(self.totalRoads):
                 if n < car.currentRoad:
                     car.currentRoad = n
-                    self.line_properties(self.road[car.currentRoad], car)  # get properties of each line in a path
+                    # get properties of each line in a path
+                    self.line_properties(self.road[car.currentRoad], car)
                     lastRoad = False
                     break
             if lastRoad:
                 car.currentRoad = len(self.totalRoads) - 1
                 self.line_properties(self.road[car.currentRoad], car)                
         else:
-            for n in (self.totalRoads):
+            for n in self.totalRoads:
                 if n > car.currentRoad:
                     car.currentRoad = n
-                    self.line_properties(self.road[car.currentRoad], car)  # get properties of each line in a path
+                    # get properties of each line in a path
+                    self.line_properties(self.road[car.currentRoad], car)
                     lastRoad = False
                     break
             if lastRoad:
@@ -294,7 +317,8 @@ class vanet(object):
         (element,) = first_set.intersection(secnd_set)
         print element[0]
 
-    def simulate_car_movement(self, cars, baseStations, scatter, com_lines):
+    def simulate_car_movement(self, cars, baseStations, scatter,
+                              com_lines, mobility):
         # temporal variables
         points = [[], []]
         scatter.remove()
@@ -303,7 +327,7 @@ class vanet(object):
 
         while com_lines:
             com_lines[0].remove()
-            del(com_lines[0])
+            del com_lines[0]
 
         # iterate over each car
         for car in cars:
@@ -335,13 +359,16 @@ class vanet(object):
                         continue
                     else:
                         # compute to see if vehicle is in range
-                        inside = math.pow((node.properties[0] - position_x), 2) + math.pow((node.properties[1] - position_y), 2)
-                        if inside <= math.pow(node.params['range'], 2):
-                            if node.type == 'accessPoint':
+                        inside = math.pow((node.properties[0] - position_x), 2) + \
+                                 math.pow((node.properties[1] - position_y), 2)
+                        if inside <= math.pow(node.params['range'][0], 2):
+                            if node.type == 'ap':
                                 color = 'black'
                             else:
                                 color = 'r'
-                            line = plot2d.plotLine2d([position_x, node.properties[0]], [position_y, node.properties[1]], color=color)
+                            line = plot2d.plotLine2d([position_x, node.properties[0]],
+                                                     [position_y, node.properties[1]],
+                                                     color=color)
                             com_lines.append(line)
                             plot2d.plotLine(line)
 

@@ -23,20 +23,17 @@ TCIntf: interface with bandwidth limiting and delay via tc
 
 Link: basic link class for creating veth pairs
 """
-import os
 import re
 
 from mininet.log import info, error, debug
 from mininet.util import makeIntfPair
-from mininet.wifiChannel import setChannelParams
-from mininet.wmediumdConnector import WmediumdServerConn, WmediumdSNRLink, WmediumdPosition
 
 class Intf(object):
 
     "Basic interface object that can configure itself."
 
     def __init__(self, name, node=None, port=None, link=None,
-                  mac=None, **params):
+                 mac=None, **params):
         """name: interface name (e.g. h1-eth0)
            node: owning node (where this intf most likely lives)
            link: parent link if we're part of a link
@@ -48,17 +45,16 @@ class Intf(object):
         self.mac = mac
         self.ip, self.prefixLen = None, None
         # if interface is lo, we know the ip is 127.0.0.1.
-        # This saves an ifconfig command per node
+        # This saves an ipAddr command per node
         if self.name == 'lo':
             self.ip = '127.0.0.1'
         # Add to node (and move ourselves if necessary )
-        moveIntfFn = params.pop('moveIntfFn', None)
-
-        # if self not in node.linksWifi:
-        if moveIntfFn:
-            node.addIntf(self, port=port, moveIntfFn=moveIntfFn)
-        else:
-            node.addIntf(self, port=port)
+        if node:
+            moveIntfFn = params.pop('moveIntfFn', None)
+            if moveIntfFn:
+                node.addIntf(self, port=port, moveIntfFn=moveIntfFn)
+            else:
+                node.addIntf(self, port=port)
 
         # Save params for future reference
         self.params = params
@@ -68,9 +64,17 @@ class Intf(object):
         "Run a command in our owning node"
         return self.node.cmd(*args, **kwargs)
 
-    def ifconfig(self, *args):
-        "Configure ourselves using ifconfig"
-        return self.cmd('ifconfig', self.name, *args)
+    def ipAddr(self, *args):
+        "Configure ourselves using ip addr"
+        if len(args) == 0:
+            return self.cmd('ip addr show', self.name)
+        else:
+            self.cmd('ip addr flush ', self.name)
+            return self.cmd('ip addr add', args[0], 'dev', self.name)
+
+    def ipLink(self, *args):
+        "Configure ourselves using ip link"
+        return self.cmd('ip link set', self.name, *args)
 
     def setIP(self, ipstr, prefixLen=None):
         """Set our IP address"""
@@ -78,51 +82,51 @@ class Intf(object):
         # mechanism and/or the way we specify IP addresses
         if '/' in ipstr:
             self.ip, self.prefixLen = ipstr.split('/')
-            return self.ifconfig(ipstr, 'up')
+            return self.ipAddr(ipstr)
         else:
             if prefixLen is None:
                 raise Exception('No prefix length set for IP address %s'
-                                 % (ipstr,))
+                                % (ipstr,))
             self.ip, self.prefixLen = ipstr, prefixLen
-            return self.ifconfig('%s/%s' % (ipstr, prefixLen))
+            return self.ipAddr('%s/%s' % (ipstr, prefixLen))
 
     def setMAC(self, macstr):
         """Set the MAC address for an interface.
            macstr: MAC address as string"""
         self.mac = macstr
-        return (self.ifconfig('down') + 
-                 self.ifconfig('hw', 'ether', macstr) + 
-                 self.ifconfig('up'))
+        return (self.ipLink('down') + 
+                self.ipLink('address', macstr) +
+                self.ipLink('up'))
 
     _ipMatchRegex = re.compile(r'\d+\.\d+\.\d+\.\d+')
     _macMatchRegex = re.compile(r'..:..:..:..:..:..')
 
     def updateIP(self):
-        "Return updated IP address based on ifconfig"
+        "Return updated IP address based on ip addr"
         # use pexec instead of node.cmd so that we dont read
         # backgrounded output from the cli.
-        ifconfig, _err, _exitCode = self.node.pexec(
-            'ifconfig %s' % self.name)
-        ips = self._ipMatchRegex.findall(ifconfig)
+        ipAddr, _err, _exitCode = self.node.pexec(
+            'ip addr show %s' % self.name)
+        ips = self._ipMatchRegex.findall(ipAddr)
         self.ip = ips[ 0 ] if ips else None
         return self.ip
 
     def updateMAC(self):
-        "Return updated MAC address based on ifconfig"
-        ifconfig = self.ifconfig()
-        macs = self._macMatchRegex.findall(ifconfig)
+        "Return updated MAC address based on ip addr"
+        ipAddr = self.ipAddr()
+        macs = self._macMatchRegex.findall(ipAddr)
         self.mac = macs[ 0 ] if macs else None
         return self.mac
 
     # Instead of updating ip and mac separately,
-    # use one ifconfig call to do it simultaneously.
-    # This saves an ifconfig command, which improves performance.
+    # use one ipAddr call to do it simultaneously.
+    # This saves an ipAddr command, which improves performance.
 
     def updateAddr(self):
-        "Return IP address and MAC address based on ifconfig."
-        ifconfig = self.ifconfig()
-        ips = self._ipMatchRegex.findall(ifconfig)
-        macs = self._macMatchRegex.findall(ifconfig)
+        "Return IP address and MAC address based on ipAddr."
+        ipAddr = self.ipAddr()
+        ips = self._ipMatchRegex.findall(ipAddr)
+        macs = self._macMatchRegex.findall(ipAddr)
         self.ip = ips[ 0 ] if ips else None
         self.mac = macs[ 0 ] if macs else None
         return self.ip, self.mac
@@ -138,7 +142,7 @@ class Intf(object):
     def isUp(self, setUp=False):
         "Return whether interface is up"
         if setUp:
-            cmdOutput = self.ifconfig('up')
+            cmdOutput = self.ipLink('up')
             # no output indicates success
             if cmdOutput:
                 # error( "Error setting %s up: %s " % ( self.name, cmdOutput ) )
@@ -146,14 +150,14 @@ class Intf(object):
             else:
                 return True
         else:
-            return "UP" in self.ifconfig()
+            return "UP" in self.ipAddr()
 
     def rename(self, newname):
         "Rename interface"
-        self.ifconfig('down')
+        self.ipLink('down')
         result = self.cmd('ip link set', self.name, 'name', newname)
         self.name = newname
-        self.ifconfig('up')
+        self.ipLink('up')
         return result
 
     # The reason why we configure things in this way is so
@@ -181,11 +185,11 @@ class Intf(object):
         results[ name ] = result
         return result
 
-    def config(self, mac=None, ip=None, ifconfig=None, up=True, **_params):
+    def config(self, mac=None, ip=None, ipAddr=None, up=True, **_params):
         """Configure Node according to (optional) parameters:
            mac: MAC address
            ip: IP address
-           ifconfig: arbitrary interface configuration
+           ipAddr: arbitrary interface configuration
            Subclasses should override this method and call
            the parent class's config(**params)"""
         # If we were overriding this method, we would call
@@ -195,8 +199,8 @@ class Intf(object):
         self.setParam(r, 'setMAC', mac=mac)
         self.setParam(r, 'setIP', ip=ip)
         self.setParam(r, 'isUp', up=up)
-        self.setParam(r, 'ifconfig', ifconfig=ifconfig)
-        
+        self.setParam(r, 'ipAddr', ipAddr=ipAddr)
+
         return r
 
     def delete(self):
@@ -222,13 +226,13 @@ class Intf(object):
 
     def __str__(self):
         return self.name
-    
+
 class IntfWireless(object):
 
     "Basic interface object that can configure itself."
 
     def __init__(self, name, node=None, port=None, link=None,
-                  mac=None, tc=False, **params):
+                 mac=None, tc=False, **params):
         """name: interface name (e.g. h1-eth0)
            node: owning node (where this intf most likely lives)
            link: parent link if we're part of a link
@@ -240,13 +244,13 @@ class IntfWireless(object):
         self.mac = mac
         self.ip, self.prefixLen = None, None
         # if interface is lo, we know the ip is 127.0.0.1.
-        # This saves an ifconfig command per node
+        # This saves an ip link/addr command per node
         if self.name == 'lo':
             self.ip = '127.0.0.1'
         # Add to node (and move ourselves if necessary )
         moveIntfFn = params.pop('moveIntfFn', None)
-        # if self not in node.linksWifi:
-        if tc == False:
+
+        if tc is False:
             if moveIntfFn:
                 node.addIntf(self, port=port, moveIntfFn=moveIntfFn)
             else:
@@ -260,9 +264,21 @@ class IntfWireless(object):
         "Run a command in our owning node"
         return self.node.cmd(*args, **kwargs)
 
-    def ifconfig(self, *args):
-        "Configure ourselves using ifconfig"
-        return self.cmd('ifconfig', self.name, *args)
+    def ipAddr(self, *args):
+        "Configure ourselves using ip link/addr"
+        if self.name not in self.node.params['wlan']:
+            self.cmd('ip addr flush ', self.name)
+            return self.cmd('ip addr add', args[0], 'dev', self.name)
+        else:
+            if len(args) == 0:
+                return self.cmd('ip addr show', self.name)
+            else:
+                self.cmd('ip addr flush ', self.name)
+                return self.cmd('ip addr add', args[0], 'dev', self.name)
+
+    def ipLink(self, *args):
+        "Configure ourselves using ip link"
+        return self.cmd('ip link set', self.name, *args)
 
     def setIP(self, ipstr, prefixLen=None):
         """Set our IP address"""
@@ -270,51 +286,51 @@ class IntfWireless(object):
         # mechanism and/or the way we specify IP addresses
         if '/' in ipstr:
             self.ip, self.prefixLen = ipstr.split('/')
-            return self.ifconfig(ipstr, 'up')
+            return self.ipAddr(ipstr)
         else:
             if prefixLen is None:
                 raise Exception('No prefix length set for IP address %s'
-                                 % (ipstr,))
+                                % (ipstr,))
             self.ip, self.prefixLen = ipstr, prefixLen
-            return self.ifconfig('%s/%s' % (ipstr, prefixLen))
+            return self.ipAddr('%s/%s' % (ipstr, prefixLen))
 
     def setMAC(self, macstr):
         """Set the MAC address for an interface.
            macstr: MAC address as string"""
         self.mac = macstr
-        return (self.ifconfig('down') + 
-                 self.ifconfig('hw', 'ether', macstr) + 
-                 self.ifconfig('up'))
+        return (self.ipLink('down') + 
+                self.ipLink('address', macstr) +
+                self.ipLink('up'))
 
     _ipMatchRegex = re.compile(r'\d+\.\d+\.\d+\.\d+')
     _macMatchRegex = re.compile(r'..:..:..:..:..:..')
 
     def updateIP(self):
-        "Return updated IP address based on ifconfig"
+        "Return updated IP address based on ip addr"
         # use pexec instead of node.cmd so that we dont read
         # backgrounded output from the cli.
-        ifconfig, _err, _exitCode = self.node.pexec(
-            'ifconfig %s' % self.name)
-        ips = self._ipMatchRegex.findall(ifconfig)
+        ipAddr, _err, _exitCode = self.node.pexec(
+            'ip addr show %s' % self.name)
+        ips = self._ipMatchRegex.findall(ipAddr)
         self.ip = ips[ 0 ] if ips else None
         return self.ip
 
     def updateMAC(self):
-        "Return updated MAC address based on ifconfig"
-        ifconfig = self.ifconfig()
-        macs = self._macMatchRegex.findall(ifconfig)
+        "Return updated MAC address based on ip addr"
+        ipAddr = self.ipAddr()
+        macs = self._macMatchRegex.findall(ipAddr)
         self.mac = macs[ 0 ] if macs else None
         return self.mac
 
     # Instead of updating ip and mac separately,
-    # use one ifconfig call to do it simultaneously.
-    # This saves an ifconfig command, which improves performance.
+    # use one ipAddr call to do it simultaneously.
+    # This saves an ipAddr command, which improves performance.
 
     def updateAddr(self):
-        "Return IP address and MAC address based on ifconfig."
-        ifconfig = self.ifconfig()
-        ips = self._ipMatchRegex.findall(ifconfig)
-        macs = self._macMatchRegex.findall(ifconfig)
+        "Return IP address and MAC address based on ip addr."
+        ipAddr = self.ipAddr()
+        ips = self._ipMatchRegex.findall(ipAddr)
+        macs = self._macMatchRegex.findall(ipAddr)
         self.ip = ips[ 0 ] if ips else None
         self.mac = macs[ 0 ] if macs else None
         return self.ip, self.mac
@@ -330,7 +346,7 @@ class IntfWireless(object):
     def isUp(self, setUp=False):
         "Return whether interface is up"
         if setUp:
-            cmdOutput = self.ifconfig('up')
+            cmdOutput = self.ipLink('up')
             # no output indicates success
             if cmdOutput:
                 # error( "Error setting %s up: %s " % ( self.name, cmdOutput ) )
@@ -338,14 +354,14 @@ class IntfWireless(object):
             else:
                 return True
         else:
-            return "UP" in self.ifconfig()
+            return "UP" in self.ipAddr()
 
     def rename(self, newname):
         "Rename interface"
-        self.ifconfig('down')
+        self.ipLink('down')
         result = self.cmd('ip link set', self.name, 'name', newname)
         self.name = newname
-        self.ifconfig('up')
+        self.ipLink('up')
         return result
 
     # The reason why we configure things in this way is so
@@ -373,11 +389,11 @@ class IntfWireless(object):
         results[ name ] = result
         return result
 
-    def config(self, mac=None, ip=None, ifconfig=None, up=True, **_params):
+    def config(self, mac=None, ip=None, ipAddr=None, up=True, **_params):
         """Configure Node according to (optional) parameters:
            mac: MAC address
            ip: IP address
-           ifconfig: arbitrary interface configuration
+           ipAddr: arbitrary interface configuration
            Subclasses should override this method and call
            the parent class's config(**params)"""
         # If we were overriding this method, we would call
@@ -387,8 +403,8 @@ class IntfWireless(object):
         self.setParam(r, 'setMAC', mac=mac)
         self.setParam(r, 'setIP', ip=ip)
         self.setParam(r, 'isUp', up=up)
-        self.setParam(r, 'ifconfig', ifconfig=ifconfig)
-        
+        self.setParam(r, 'ipAddr', ipAddr=ipAddr)
+
         return r
 
     def delete(self):
@@ -423,17 +439,17 @@ class TCIntfWireless(IntfWireless):
     # The parameters we use seem to work reasonably up to 1 Gb/sec
     # For higher data rates, we will probably need to change them.
     bwParamMax = 1000
-    
+
     def bwCmds(self, bw=None, speedup=0, use_hfsc=False, use_tbf=False,
-                latency_ms=None, enable_ecn=False, enable_red=False):
+               latency_ms=None, enable_ecn=False, enable_red=False):
         "Return tc commands to set bandwidth"
         cmds, parent = [], ' root '
         if bw and (bw < 0 or bw > self.bwParamMax):
             error('Bandwidth limit', bw, 'is outside supported range 0..%d'
-                   % self.bwParamMax, '- ignoring\n')
+                  % self.bwParamMax, '- ignoring\n')
         elif bw is not None:
             # BL: this seems a bit brittle...
-            if (speedup > 0):
+            if speedup > 0:
                 bw = speedup
             # This may not be correct - we should look more closely
             # at the semantics of burst (and cburst) to make sure we
@@ -443,7 +459,7 @@ class TCIntfWireless(IntfWireless):
                 cmds += [ '%s qdisc add dev %s root handle 5:0 hfsc default 1',
                           '%s class add dev %s parent 5:0 classid 5:1 hfsc sc '
                           + 'rate %fMbit ul rate %fMbit' % (bw, bw) ]
-            elif use_tbf:                
+            elif use_tbf:
                 if latency_ms is None:
                     latency_ms = 15 * 8 / bw
                 cmds += [ '%s qdisc add dev %s root handle 5: tbf ' + 
@@ -469,12 +485,12 @@ class TCIntfWireless(IntfWireless):
                           'burst 20 ' + 
                           'bandwidth %fmbit probability 1' % bw ]
                 parent = ' parent 6: '
-                
+
         return cmds, parent
 
     @staticmethod
     def delayCmds(parent, delay=None, jitter=None,
-                   loss=None, max_queue_size=None):
+                  loss=None, max_queue_size=None):
         "Internal method: return tc commands for delay and loss"
         cmds = []
         if delay and delay < 0:
@@ -505,10 +521,9 @@ class TCIntfWireless(IntfWireless):
         return self.cmd(c)
 
     def config(self, bw=None, delay=None, jitter=None, loss=None,
-                gro=False, txo=True, rxo=True,
-                speedup=0, use_hfsc=False, use_tbf=False,
-                latency_ms=None, enable_ecn=False, enable_red=False,
-                max_queue_size=None, **params):
+               gro=False, speedup=0, use_hfsc=False, use_tbf=False,
+               latency_ms=None, enable_ecn=False, enable_red=False,
+               max_queue_size=None, **params):
         """Configure the port and set its properties.
             bw: bandwidth in b/s (e.g. '10m')
             delay: transmit delay (e.g. '1ms' )
@@ -524,51 +539,47 @@ class TCIntfWireless(IntfWireless):
             enable_ecn: enable ECN (False)
             enable_red: enable RED (False)
             max_queue_size: queue limit parameter for netem"""
-        
+
         # Support old names for parameters
         gro = not params.pop('disable_gro', not gro)
-        
+
         result = IntfWireless.config(self, **params)
 
         def on(isOn):
             "Helper method: bool -> 'on'/'off'"
             return 'on' if isOn else 'off'
- 
+
         # Set offload parameters with ethool
         self.cmd('ethtool -K', self,
-                  'gro', on(gro),
-                  'tx', on(txo),
-                  'rx', on(rxo))
+                 'gro', on(gro))
 
         # Optimization: return if nothing else to configure
         # Question: what happens if we want to reset things?
         if (bw is None and not delay and not loss
-             and max_queue_size is None):
+                and max_queue_size is None):
             return
 
         # Clear existing configuration
-        cmds = []
         tcoutput = self.tc('%s qdisc show dev %s')
-        if "priomap" not in tcoutput and "qdisc noqueue" not in tcoutput \
-            and tcoutput != 'qdisc mq 0: root':
+        if "priomap" not in tcoutput and "noqueue" not in tcoutput:
             cmds = [ '%s qdisc del dev %s root' ]
         else:
             cmds = []
         # Bandwidth limits via various methods
         bwcmds, parent = self.bwCmds(bw=bw, speedup=speedup,
-                                      use_hfsc=use_hfsc, use_tbf=use_tbf,
-                                      latency_ms=latency_ms,
-                                      enable_ecn=enable_ecn,
-                                      enable_red=enable_red)
+                                     use_hfsc=use_hfsc, use_tbf=use_tbf,
+                                     latency_ms=latency_ms,
+                                     enable_ecn=enable_ecn,
+                                     enable_red=enable_red)
         cmds += bwcmds
 
         # Delay/jitter/loss/max_queue_size using netem
         delaycmds, parent = self.delayCmds(delay=delay, jitter=jitter,
-                                            loss=loss,
-                                            max_queue_size=max_queue_size,
-                                            parent=parent)
+                                           loss=loss,
+                                           max_queue_size=max_queue_size,
+                                           parent=parent)
         cmds += delaycmds
-       
+
         # Execute all the commands in our node
         debug("at map stage w/cmds: %s\n" % cmds)
         tcoutputs = [ self.tc(cmd) for cmd in cmds ]
@@ -579,7 +590,7 @@ class TCIntfWireless(IntfWireless):
         debug("outputs:", tcoutputs, '\n')
         result[ 'tcoutputs'] = tcoutputs
         result[ 'parent' ] = parent
-        
+
         return result
 
 
@@ -593,15 +604,15 @@ class TCIntf(Intf):
     bwParamMax = 1000
 
     def bwCmds(self, bw=None, speedup=0, use_hfsc=False, use_tbf=False,
-                latency_ms=None, enable_ecn=False, enable_red=False):
+               latency_ms=None, enable_ecn=False, enable_red=False):
         "Return tc commands to set bandwidth"
         cmds, parent = [], ' root '
         if bw and (bw < 0 or bw > self.bwParamMax):
             error('Bandwidth limit', bw, 'is outside supported range 0..%d'
-                   % self.bwParamMax, '- ignoring\n')
+                  % self.bwParamMax, '- ignoring\n')
         elif bw is not None:
             # BL: this seems a bit brittle...
-            if (speedup > 0):
+            if speedup > 0:
                 bw = speedup
             # This may not be correct - we should look more closely
             # at the semantics of burst (and cburst) to make sure we
@@ -611,9 +622,9 @@ class TCIntf(Intf):
                 cmds += [ '%s qdisc add dev %s root handle 5:0 hfsc default 1',
                           '%s class add dev %s parent 5:0 classid 5:1 hfsc sc '
                           + 'rate %fMbit ul rate %fMbit' % (bw, bw) ]
-            elif use_tbf:                
+            elif use_tbf:
                 if latency_ms is None:
-                    latency_ms = 15 * 8 / bw
+                    latency_ms = 15.0 * 8 / bw
                 cmds += [ '%s qdisc add dev %s root handle 5: tbf ' + 
                           'rate %fMbit burst 15000 latency %fms' % 
                           (bw, latency_ms) ]
@@ -642,7 +653,7 @@ class TCIntf(Intf):
 
     @staticmethod
     def delayCmds(parent, delay=None, jitter=None,
-                   loss=None, max_queue_size=None):
+                  loss=None, max_queue_size=None):
         "Internal method: return tc commands for delay and loss"
         cmds = []
         if delay and delay < 0:
@@ -672,116 +683,167 @@ class TCIntf(Intf):
         debug(" *** executing command: %s\n" % c)
         return self.cmd(c)
 
-    def config(self, bw=None, delay=None, jitter=None, loss=None,
-                disable_gro=True, speedup=0, use_hfsc=False, use_tbf=False,
+    def config( self, bw=None, delay=None, jitter=None, loss=None,
+                gro=False, txo=True, rxo=True,
+                speedup=0, use_hfsc=False, use_tbf=False,
                 latency_ms=None, enable_ecn=False, enable_red=False,
-                max_queue_size=None, **params):
-        "Configure the port and set its properties."
-        result = Intf.config(self, **params)
+                max_queue_size=None, **params ):
+        """Configure the port and set its properties.
+           bw: bandwidth in b/s (e.g. '10m')
+           delay: transmit delay (e.g. '1ms' )
+           jitter: jitter (e.g. '1ms')
+           loss: loss (e.g. '1%' )
+           gro: enable GRO (False)
+           txo: enable transmit checksum offload (True)
+           rxo: enable receive checksum offload (True)
+           speedup: experimental switch-side bw option
+           use_hfsc: use HFSC scheduling
+           use_tbf: use TBF scheduling
+           latency_ms: TBF latency parameter
+           enable_ecn: enable ECN (False)
+           enable_red: enable RED (False)
+           max_queue_size: queue limit parameter for netem"""
 
-        # Disable GRO
-        if disable_gro:
-            self.cmd('ethtool -K %s gro off' % self)
+        # Support old names for parameters
+        gro = not params.pop( 'disable_gro', not gro )
+
+        result = Intf.config( self, **params)
+
+        def on( isOn ):
+            "Helper method: bool -> 'on'/'off'"
+            return 'on' if isOn else 'off'
+
+        # Set offload parameters with ethool
+        self.cmd( 'ethtool -K', self,
+                  'gro', on( gro ),
+                  'tx', on( txo ),
+                  'rx', on( rxo ) )
 
         # Optimization: return if nothing else to configure
         # Question: what happens if we want to reset things?
-        if (bw is None and not delay and not loss
-             and max_queue_size is None):
+        if ( bw is None and not delay and not loss
+             and max_queue_size is None ):
             return
 
         # Clear existing configuration
-        cmds = []
-        tcoutput = self.tc('%s qdisc show dev %s')
-        if "priomap" not in tcoutput and "qdisc noqueue" not in tcoutput:
+        tcoutput = self.tc( '%s qdisc show dev %s' )
+        if "priomap" not in tcoutput and "noqueue" not in tcoutput:
             cmds = [ '%s qdisc del dev %s root' ]
         else:
             cmds = []
+
         # Bandwidth limits via various methods
-        bwcmds, parent = self.bwCmds(bw=bw, speedup=speedup,
+        bwcmds, parent = self.bwCmds( bw=bw, speedup=speedup,
                                       use_hfsc=use_hfsc, use_tbf=use_tbf,
                                       latency_ms=latency_ms,
                                       enable_ecn=enable_ecn,
-                                      enable_red=enable_red)
+                                      enable_red=enable_red )
         cmds += bwcmds
 
         # Delay/jitter/loss/max_queue_size using netem
-        delaycmds, parent = self.delayCmds(delay=delay, jitter=jitter,
+        delaycmds, parent = self.delayCmds( delay=delay, jitter=jitter,
                                             loss=loss,
                                             max_queue_size=max_queue_size,
-                                            parent=parent)
+                                            parent=parent )
         cmds += delaycmds
 
         # Ugly but functional: display configuration info
-        stuff = (([ '%.2fMbit' % bw ] if bw is not None else []) + 
-                  ([ '%s delay' % delay ] if delay is not None else []) + 
-                  ([ '%s jitter' % jitter ] if jitter is not None else []) + 
-                  (['%5f%% loss' % loss ] if loss is not None else []) + 
-                  ([ 'ECN' ] if enable_ecn else [ 'RED' ]
-                    if enable_red else []))
+        stuff = ( ( [ '%.2fMbit' % bw ] if bw is not None else [] ) +
+                  ( [ '%s delay' % delay ] if delay is not None else [] ) +
+                  ( [ '%s jitter' % jitter ] if jitter is not None else [] ) +
+                  ( ['%.5f%% loss' % loss ] if loss is not None else [] ) +
+                  ( [ 'ECN' ] if enable_ecn else [ 'RED' ]
+                    if enable_red else [] ) )
+        info( '(' + ' '.join( stuff ) + ') ' )
 
-        # Print bw info
-        info('(' + ' '.join(stuff) + ') ')
-        
         # Execute all the commands in our node
         debug("at map stage w/cmds: %s\n" % cmds)
         tcoutputs = [ self.tc(cmd) for cmd in cmds ]
         for output in tcoutputs:
             if output != '':
-                error("*** Error: %s" % output)
-        debug("cmds:", cmds, '\n')
-        debug("outputs:", tcoutputs, '\n')
+                error( "*** Error: %s" % output )
+        debug( "cmds:", cmds, '\n' )
+        debug( "outputs:", tcoutputs, '\n' )
         result[ 'tcoutputs'] = tcoutputs
         result[ 'parent' ] = parent
-        
-        return result
-    
-class WDSLink(object):
 
-    # pylint: disable=too-many-branches
+        return result
+
+class _4addrLink(object):
+
     def __init__(self, node1, node2, intf=Intf):
         """Create WDS link to another node.
            node1: first node
            node2: second node
            intf: default interface class/constructor
            """
- 
-        self.createWDSIface(node1)
-        self.createWDSIface(node2)
-        self.setWDSPeer(node1, node2)
-        self.bringWDSIfaceUP(node1)
-        self.bringWDSIfaceUP(node2)
-       
-        params1 = {}
-        params2 = {}
-
-        params1[ 'port' ] = node1.newPort()
-        params2[ 'port' ] = node2.newPort()
-        
+        intf1 = None
+        intf2 = None
         cls = intf
-        
-        intfName1 = '%s-wds' % node1.name
-        intfName2 = '%s-wds' % node2.name
 
-        node1.setBw(node1, 0, intfName1)
-        node2.setBw(node2, 0, intfName2)
-        
-        intf1 = cls(name=intfName1, node=node1,
-                              link=self, **params1)
-        intf2 = cls(name=intfName2, node=node2,
-                              link=self, **params2)
+        ap = node1
+        client = node2
+        client_intfName = '%s.wds' % client.name
+
+        if node1.params['_4addr'] == 'client':
+            client = node1
+            ap = node2
+            client_intfName = '%s.wds' % node1.name
+
+        if client_intfName not in client.params['wlan']:
+            self.add4addrIface(client, client_intfName)
+            client.params['mac'].append(client.params['mac'][0][:3] +
+                                        '09' + client.params['mac'][0][5:])
+            self.setMAC(client)
+            self.bring4addrIfaceUP(client)
+
+            ap.params['mode'].append(ap.params['mode'][0])
+            ap.params['channel'].append(ap.params['channel'][0])
+            ap.params['frequency'].append(ap.params['frequency'][0])
+            ap.params['txpower'].append(14)
+            ap.params['antennaGain'].append(ap.params['antennaGain'][0])
+
+            client.params['mode'].append(node1.params['mode'][0])
+            client.params['channel'].append(client.params['channel'][0])
+            client.params['frequency'].append(client.params['frequency'][0])
+            client.params['txpower'].append(14)
+            client.params['antennaGain'].append(client.params['antennaGain'][0])
+            client.params['wlan'].append(client_intfName)
+            client.cmd('iw dev %s connect %s %s'
+                       % (client.params['wlan'][1],
+                          ap.params['ssid'][0], ap.params['mac'][0]))
+
+            params1 = {}
+            params2 = {}
+            params1[ 'port' ] = client.newPort()
+            params2[ 'port' ] = ap.newPort()
+            intf1 = cls(name=client_intfName, node=client, link=self, **params1)
+            if hasattr(ap, 'wds'):
+                ap.wds += 1
+            else:
+                ap.wds = 1
+            intfName2 = ap.params['wlan'][0] + '.sta%s' % ap.wds
+            intf2 = cls(name=intfName2, node=ap, link=self, **params2)
+            ap.params['wlan'].append(intfName2)
+            ap.params['mac'].append(ap.params['mac'][0])
+
         # All we are is dust in the wind, and our two interfaces
         self.intf1, self.intf2 = intf1, intf2
-    
-    def bringWDSIfaceUP(self, node):
-        node.cmd('ifconfig %s-wds up' % node.name)
-    
-    def setWDSPeer(self, node1, node2):
-        node1.cmd('iw dev %s-wds set peer %s' % (node1.name, node2.params['mac'][0]))
-        node2.cmd('iw dev %s-wds set peer %s' % (node2.name, node1.params['mac'][0]))
-        
-    def createWDSIface(self, node):
-        node.cmd('iw dev %s interface add %s-wds type wds' % (node.params['wlan'][0], node.name))
-    
+
+    @classmethod
+    def bring4addrIfaceUP(cls, node):
+        node.cmd('ip link set dev %s.wds up' % node.name)
+
+    @classmethod
+    def setMAC(cls, node):
+        node.cmd('ip link set dev %s.wds addr %s'
+                 % (node.name, node.params['mac'][1]))
+
+    @classmethod
+    def add4addrIface(cls, node, intfName):
+        node.cmd('iw dev %s interface add %s type managed 4addr on'
+                 % (node.params['wlan'][0], intfName))
+
 class WirelessLinkAP(object):
 
     """A basic link is just a veth pair.
@@ -789,8 +851,8 @@ class WirelessLinkAP(object):
 
     # pylint: disable=too-many-branches
     def __init__(self, node1, port1=None,
-                  intfName1=None, addr1=None,
-                  intf=Intf, cls1=None, params1=None):
+                 intfName1=None, addr1=None,
+                 intf=Intf, cls1=None, params1=None):
         """Create veth link to another node, making two new interfaces.
            node1: first node
            port1: node1 port number (optional)
@@ -804,14 +866,14 @@ class WirelessLinkAP(object):
 
         if params1 is None:
             params1 = {}
-        
+
         if port1 is not None:
             params1[ 'port' ] = port1
-        
-        ifacename = 'wlan'  
-        
+
+        ifacename = 'wlan'
+
         if 'port' not in params1:
-            if intfName1 == None:
+            if intfName1 is None:
                 nodelen = int(len(node1.params['wlan']))
                 currentlen = node1.wlanports
                 if nodelen > currentlen + 1:
@@ -820,27 +882,27 @@ class WirelessLinkAP(object):
                     params1[ 'port' ] = currentlen
                 intfName1 = self.wlanName(node1, ifacename, params1[ 'port' ])
                 intf1 = cls1(name=intfName1, node=node1,
-                        link=self, mac=addr1, **params1)
+                             link=self, mac=addr1, **params1)
             else:
                 params1[ 'port' ] = node1.newPort()
                 node1.newPort()
                 intf1 = cls1(name=intfName1, node=node1,
-                    link=self, mac=addr1, **params1)
+                             link=self, mac=addr1, **params1)
         else:
             intfName1 = self.wlanName(node1, ifacename, params1[ 'port' ])
             intf1 = cls1(name=intfName1, node=node1,
-                      link=self, mac=addr1, **params1)
+                         link=self, mac=addr1, **params1)
 
         if not intfName1:
             intfName1 = self.wlanName(node1, ifacename, node1.newWlanPort())
-           
+
         if not cls1:
             cls1 = intf
-            
+
         intf2 = 'wireless'
         # All we are is dust in the wind, and our two interfaces
         self.intf1, self.intf2 = intf1, intf2
-    # pylint: enable=too-many-branches    
+    # pylint: enable=too-many-branches
 
     @staticmethod
     def _ignore(*args, **kwargs):
@@ -881,8 +943,8 @@ class WirelessLinkStation(object):
 
     # pylint: disable=too-many-branches
     def __init__(self, node1, port1=None,
-                  intfName1=None, addr1=None,
-                  intf=Intf, cls1=None, params1=None):
+                 intfName1=None, addr1=None,
+                 intf=Intf, cls1=None, params1=None):
         """Create veth link to another node, making two new interfaces.
            node1: first node
            port1: node1 port number (optional)
@@ -896,26 +958,26 @@ class WirelessLinkStation(object):
 
         if params1 is None:
             params1 = {}
-        
+
         if port1 is not None:
             params1[ 'port' ] = port1
-          
+
         if 'port' not in params1:
             params1[ 'port' ] = node1.newPort()
-            
+
         if not intfName1:
             ifacename = 'wlan'
             intfName1 = self.wlanName(node1, ifacename, node1.newWlanPort())
-           
+
         if not cls1:
             cls1 = intf
-       
+
         intf1 = cls1(name=intfName1, node=node1,
-                      link=self, mac=addr1, **params1)
+                     link=self, mac=addr1, **params1)
         intf2 = 'wireless'
         # All we are is dust in the wind, and our two interfaces
         self.intf1, self.intf2 = intf1, intf2
-    # pylint: enable=too-many-branches    
+    # pylint: enable=too-many-branches
 
     @staticmethod
     def _ignore(*args, **kwargs):
@@ -957,9 +1019,9 @@ class Link(object):
 
     # pylint: disable=too-many-branches
     def __init__(self, node1, node2, port1=None, port2=None,
-                  intfName1=None, intfName2=None, addr1=None, addr2=None,
-                  intf=Intf, cls1=None, cls2=None, params1=None,
-                  params2=None, fast=True):
+                 intfName1=None, intfName2=None, addr1=None, addr2=None,
+                 intf=Intf, cls1=None, cls2=None, params1=None,
+                 params2=None, fast=True):
         """Create veth link to another node, making two new interfaces.
            node1: first node
            node2: second node
@@ -999,7 +1061,7 @@ class Link(object):
             params1.setdefault('moveIntfFn', self._ignore)
             params2.setdefault('moveIntfFn', self._ignore)
             self.makeIntfPair(intfName1, intfName2, addr1, addr2,
-                               node1, node2, deleteIntfs=False)
+                              node1, node2, deleteIntfs=False)
         else:
             self.makeIntfPair(intfName1, intfName2, addr1, addr2)
 
@@ -1009,9 +1071,9 @@ class Link(object):
             cls2 = intf
 
         intf1 = cls1(name=intfName1, node=node1,
-                      link=self, mac=addr1, **params1)
+                     link=self, mac=addr1, **params1)
         intf2 = cls2(name=intfName2, node=node2,
-                      link=self, mac=addr2, **params2)
+                     link=self, mac=addr2, **params2)
 
         # All we are is dust in the wind, and our two interfaces
         self.intf1, self.intf2 = intf1, intf2
@@ -1030,7 +1092,7 @@ class Link(object):
 
     @classmethod
     def makeIntfPair(cls, intfname1, intfname2, addr1=None, addr2=None,
-                      node1=None, node2=None, deleteIntfs=True):
+                     node1=None, node2=None, deleteIntfs=True):
         """Create pair of interfaces
            intfname1: name for interface 1
            intfname2: name for interface 2
@@ -1043,7 +1105,7 @@ class Link(object):
         # Leave this as a class method for now
         assert cls
         return makeIntfPair(intfname1, intfname2, addr1, addr2, node1, node2,
-                             deleteIntfs=deleteIntfs)
+                            deleteIntfs=deleteIntfs)
 
     def delete(self):
         "Delete this link"
@@ -1067,13 +1129,13 @@ class Link(object):
 class OVSIntf(Intf):
     "Patch interface on an OVSSwitch"
 
-    def ifconfig(self, *args):
+    def ipAddr(self, *args):
         cmd = ' '.join(args)
         if cmd == 'up':
             # OVSIntf is always up
             return
         else:
-            raise Exception('OVSIntf cannot do ifconfig ' + cmd)
+            raise Exception('OVSIntf cannot do ip addr ' + cmd)
 
 class OVSLink(Link):
     """Link that makes patch links between OVSSwitches
@@ -1081,12 +1143,11 @@ class OVSLink(Link):
        than ~64 OVS patch links should be used in row."""
 
     def __init__(self, node1, node2, **kwargs):
-        from mininet.node import OVSSwitch
-        
         "See Link.__init__() for options"
+        from mininet.node import OVSSwitch
         self.isPatchLink = False
-        if (isinstance(node1, OVSSwitch) and
-             isinstance(node2, OVSSwitch)):
+        if (isinstance(node1, OVSSwitch)
+                and isinstance(node2, OVSSwitch)):
             self.isPatchLink = True
             kwargs.update(cls1=OVSIntf, cls2=OVSIntf)
         Link.__init__(self, node1, node2, **kwargs)
@@ -1101,39 +1162,37 @@ class OVSLink(Link):
 class TCLink(Link):
     "Link with symmetric TC interfaces configured via opts"
     def __init__(self, node1, node2, port1=None, port2=None,
-                  intfName1=None, intfName2=None,
-                  addr1=None, addr2=None, **params):
+                 intfName1=None, intfName2=None,
+                 addr1=None, addr2=None, **params):
         Link.__init__(self, node1, node2, port1=port1, port2=port2,
-                       intfName1=intfName1, intfName2=intfName2,
-                       cls1=TCIntf,
-                       cls2=TCIntf,
-                       addr1=addr1, addr2=addr2,
-                       params1=params,
-                       params2=params)
-        
+                      intfName1=intfName1, intfName2=intfName2,
+                      cls1=TCIntf,
+                      cls2=TCIntf,
+                      addr1=addr1, addr2=addr2,
+                      params1=params,
+                      params2=params)
+
 class TCLinkWirelessStation(WirelessLinkStation):
     "Link with symmetric TC interfaces configured via opts"
-    def __init__(self, node1, port1=None, port2=None,
-                  intfName1=None, intfName2=None,
-                  addr1=None, addr2=None, **params):
+    def __init__(self, node1, port1=None, intfName1=None,
+                 addr1=None, **params):
         WirelessLinkStation.__init__(self, node1, port1=port1,
-                       intfName1=intfName1,
-                       cls1=TCIntfWireless,
-                       addr1=addr1,
-                       params1=params)
-        
+                                     intfName1=intfName1,
+                                     cls1=TCIntfWireless,
+                                     addr1=addr1,
+                                     params1=params)
+
 class TCLinkWirelessAP(WirelessLinkAP):
     "Link with symmetric TC interfaces configured via opts"
-    def __init__(self, node1, port1=None, port2=None,
-                  intfName1=None, intfName2=None,
-                  addr1=None, addr2=None, **params):
+    def __init__(self, node1, port1=None, intfName1=None,
+                 addr1=None, **params):
         WirelessLinkAP.__init__(self, node1, port1=port1,
-                       intfName1=intfName1,
-                       cls1=TCIntfWireless,
-                       addr1=addr1,
-                       params1=params)
-        
-        
+                                intfName1=intfName1,
+                                cls1=TCIntfWireless,
+                                addr1=addr1,
+                                params1=params)
+
+
 class TCULink(TCLink):
     """TCLink with default settings optimized for UserSwitch
        (txo=rxo=0/False).  Unfortunately with recent Linux kernels,
@@ -1147,243 +1206,3 @@ class TCULink(TCLink):
     def __init__(self, *args, **kwargs):
         kwargs.update(txo=False, rxo=False)
         TCLink.__init__(self, *args, **kwargs)
-        
-class Association(Link):        
-    
-    printCon = True
-    
-    @classmethod    
-    def configureAdhoc(self, sta):
-        """
-        Configure Wireless Ad Hoc
-        """
-        wlan = sta.ifaceToAssociate
-        iface = sta.params['wlan'][wlan]
-        sta.params['rssi'][wlan] = -62
-        sta.params['snr'][wlan] = -62 - (-91.0)
-        sta.func[wlan] = 'adhoc'
-        sta.intfs[wlan].setIP(sta.params['ip'][wlan])
-        sta.cmd('iw dev %s set type ibss' % iface)
-        sta.params['associatedTo'][wlan] = sta.params['ssid'][wlan]
-        info("associating %s to %s...\n" % (iface, sta.params['ssid'][wlan]))
-        sta.pexec('iwconfig %s channel %s essid %s mode ad-hoc' % (iface, sta.params['channel'][wlan], \
-                                                     sta.params['associatedTo'][wlan]))
-        sta.pexec('iwconfig %s ap %s' % (iface, sta.params['cell'][wlan]))
-        
-    @classmethod    
-    def configureMesh(self, node, wlan):
-        """
-        Configure Wireless Mesh Interface
-        """
-        node.params['rssi'][wlan] = -62
-        node.params['snr'][wlan] = -62 - (-91.0)
-           
-        if 'mp' not in node.params['wlan'][wlan]:
-            node.convertIfaceToMesh(node, wlan)
-            iface = node.params['wlan'][wlan]
-            node.params['frequency'][wlan] = setChannelParams.frequency(node, wlan)
-            self.getMacAddress(node, iface, wlan)
-            node.intfs[wlan] = node.params['wlan'][wlan]
-            cls = TCLinkWirelessStation
-            cls(node, port1=wlan, intfName1=node.params['wlan'][wlan])
-        
-        if 'position' not in node.params:
-            self.meshAssociation(node, wlan)
-            
-        if 'link' in node.params and node.params['link'] == 'mesh':
-            cls = TCLinkWirelessAP
-            intf = '%s-mp%s' % (node, wlan)
-            cls(node, intfName1=intf)
-            node.setBw(node, wlan, intf)
-    
-    @classmethod
-    def meshAssociation(self, sta, wlan):
-        """
-        Performs Mesh Association
-        """
-        info("associating %s to %s...\n" % (sta.params['wlan'][wlan], sta.params['ssid'][wlan]))
-        sta.pexec('iw dev %s mesh join %s' % (sta.params['wlan'][wlan], sta.params['ssid'][wlan]))
-    
-    _macMatchRegex = re.compile(r'..:..:..:..:..:..')
-    
-    @classmethod
-    def getMacAddress(self, sta, iface, wlan):
-        """ get Mac Address of any Interface """
-        ifconfig = str(sta.pexec('ifconfig %s' % iface))
-        mac = self._macMatchRegex.findall(ifconfig)
-        sta.meshMac[wlan] = str(mac[0])
-        
-    @classmethod
-    def setSNRWmediumd(self, sta, ap, snr):
-        """Set SNR for wmediumd"""
-        WmediumdServerConn.send_snr_update(WmediumdSNRLink(sta.wmediumdIface, ap.wmediumdIface, snr))
-        WmediumdServerConn.send_snr_update(WmediumdSNRLink(ap.wmediumdIface, sta.wmediumdIface, snr))
-        
-    @classmethod
-    def setPositionWmediumd(self, sta):
-        """Set SNR for wmediumd"""
-        posX = sta.params['position'][0]
-        posY = sta.params['position'][1]
-        WmediumdServerConn.send_position_update(WmediumdPosition(sta.wmediumdIface, \
-                                            [float(posX), float(posY)]))
-    @classmethod
-    def configureWirelessLink(self, sta, ap, wlan, useWmediumd=False):
-        """ 
-        Updates RSSI, SNR, and Others...
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """
-        
-        dist = setChannelParams.getDistance(sta, ap)
-        if dist <= ap.params['range']:
-            for wlan in range(0, len(sta.params['wlan'])):
-                if sta.params['rssi'][wlan] == 0:
-                    self.updateParams(sta, ap, wlan)
-                if sta.params['associatedTo'][wlan] == '' and ap not in sta.params['associatedTo']:
-                    sta.params['associatedTo'][wlan] = ap 
-                    cls = Association
-                    cls.associate_infra(sta, ap, wlan)
-                    if not useWmediumd:
-                        if dist >= 0.01:
-                            setChannelParams(sta, ap, wlan, dist)
-                    if sta not in ap.params['associatedStations']:
-                        ap.params['associatedStations'].append(sta)
-                rssi_ = setChannelParams.setRSSI(sta, ap, wlan, dist)
-                sta.params['rssi'][wlan] = rssi_
-                snr_ = setChannelParams.setSNR(sta, wlan)
-                sta.params['snr'][wlan] = snr_
-            if ap not in sta.params['apsInRange']:
-                sta.params['apsInRange'].append(ap)
-                ap.params['stationsInRange'][sta] = rssi_
-            setChannelParams.recordParams(sta, ap)
-                
-    @classmethod     
-    def updateParams(self, sta, ap, wlan):
-        """ 
-        Updates values for frequency and channel
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """
-
-        sta.params['frequency'][wlan] = setChannelParams.frequency(ap, 0)
-        sta.params['channel'][wlan] = ap.params['channel'][0]
-    
-    @classmethod
-    def associate(self, sta, ap, useWmediumd):
-        """ Associate to Access Point """
-        wlan = sta.ifaceToAssociate
-        if 'position' in sta.params:
-            self.configureWirelessLink(sta, ap, wlan, useWmediumd)
-        else:
-            self.associate_infra(sta, ap, wlan)
-            sta.params['associatedTo'][wlan] = ap
-            ap.params['associatedStations'].append(sta)
-        sta.ifaceToAssociate += 1
-        
-    @classmethod
-    def associate_noEncrypt(self, sta, ap, wlan):
-        """ 
-        Association when there is no encrypt
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """
-        debug('iwconfig %s essid %s ap %s\n' % (sta.params['wlan'][wlan], ap.params['ssid'][0], \
-                                                    ap.params['mac'][0]))
-        sta.pexec('iwconfig %s essid %s ap %s' % (sta.params['wlan'][wlan], ap.params['ssid'][0], \
-                                                    ap.params['mac'][0]))        
-
-    @classmethod
-    def associate_infra(self, sta, ap, wlan):
-        """ 
-        Association when infra
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """
-        if 'encrypt' not in ap.params:
-            self.associate_noEncrypt(sta, ap, wlan)
-        else:
-            if ap.params['encrypt'][0] == 'wpa' or ap.params['encrypt'][0] == 'wpa2':
-                self.associate_wpa(sta, ap, wlan)
-            elif ap.params['encrypt'][0] == 'wep':
-                self.associate_wep(sta, ap, wlan)
-        if self.printCon:
-            iface = sta.params['wlan'][wlan]
-            info("Associating %s to %s\n" % (iface, ap))
-        sta.params['frequency'][wlan] = setChannelParams.frequency(ap, 0)
-        
-    @classmethod
-    def wpaFile(self, sta, ap, wlan):
-        """ 
-        It creates a wpa config file
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """ 
-        if 'config' not in ap.params or 'config' not in sta.params:
-            if 'passwd' not in sta.params:
-                passwd = ap.params['passwd'][0]
-            else:
-                passwd = sta.params['passwd'][wlan]
-                
-        content = 'ctrl_interface=/var/run/wpa_supplicant\nnetwork={\n'
-                
-        if 'config' in sta.params:
-            config = sta.params['config']
-            if(config != []):
-                config = sta.params['config'].split(',')
-                sta.params.pop("config", None)
-                for conf in config:
-                    content = content + "   " + conf + "\n"
-        else:
-            content = (content + '   ssid=\"%s\"\n' \
-                    '   psk=\"%s\"\n' \
-                    '   key_mgmt=%s\n' \
-                    '   proto=%s\n' \
-                    '   pairwise=%s\n') % \
-            (ap.params['ssid'][0], passwd, ap.wpa_key_mgmt, ap.params['encrypt'][0].upper(), ap.rsn_pairwise)
-        
-        content = content + '}'
-        
-        fileName = str(sta) + '.staconf'
-        os.system('echo \'%s\' > %s' % (content, fileName))  
-
-    @classmethod
-    def associate_wpa(self, sta, ap, wlan):
-        """ 
-        Association when WPA
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """
-        pidfile = "mn%d_%s_%s_wpa.pid" % (os.getpid(), sta.name, wlan)
-        self.wpaFile(sta, ap, wlan)
-        debug("wpa_supplicant -B -Dnl80211 -P %s -i %s -c %s.staconf\n"
-                % (pidfile, sta.params['wlan'][wlan], sta))
-        sta.pexec("wpa_supplicant -B -Dnl80211 -P %s -i %s -c %s.staconf"
-                % (pidfile, sta.params['wlan'][wlan], sta))
-
-    @classmethod
-    def associate_wep(self, sta, ap, wlan):
-        """ 
-        Association when WEP
-        
-        :param sta: station
-        :param ap: access point
-        :param wlan: wlan ID
-        """
-        if 'passwd' not in sta.params:
-            passwd = ap.params['passwd'][0]
-        else:
-            passwd = sta.params['passwd'][wlan]
-        sta.pexec('iw dev %s connect %s key d:0:%s' \
-                % (sta.params['wlan'][wlan], ap.params['ssid'][0], passwd))

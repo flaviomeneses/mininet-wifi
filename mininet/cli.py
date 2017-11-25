@@ -4,9 +4,9 @@ A simple command-line interface for Mininet.
 The Mininet CLI provides a simple control console which
 makes it easy to talk to nodes. For example, the command
 
-mininet> h27 ifconfig
+mininet> h27 ip addr
 
-runs 'ifconfig' on host h27.
+runs 'ip addr' on host h27.
 
 Having a single console rather than, for example, an xterm for each
 node is particularly convenient for networks of any reasonable
@@ -28,18 +28,16 @@ and bandwidth ('iperf'.)
 from subprocess import call
 from cmd import Cmd
 from os import isatty
+from os import path
 from select import poll, POLLIN
 import sys
 import time
-import os
 import atexit
 
-from mininet.wifiNet import mininetWiFi
-from mininet.wifiMobility import mobility
 from mininet.log import info, output, error
 from mininet.term import makeTerms, runX11
 from mininet.util import (quietRun, dumpNodeConnections,
-                           dumpPorts)
+                          dumpPorts)
 
 class CLI(Cmd):
     "Simple command-line interface to talk to nodes."
@@ -51,33 +49,6 @@ class CLI(Cmd):
            mininet: Mininet network object
            stdin: standard input for CLI
            script: script to run in batch mode"""
-
-        stations = mininet.stations
-        accessPoints = mininet.accessPoints
-
-        if not mininetWiFi.isMobility and mininetWiFi.isWiFi == True:
-            mininetWiFi.autoAssociation(stations, accessPoints)
-
-        if not mininetWiFi.isMobility and mininetWiFi.DRAW and not mininetWiFi.alreadyPlotted:
-            mininet.stations, mininet.accessPoints = mininetWiFi.checkAPAdhoc(stations, accessPoints)
-            
-            if mobility.accessPoints == []:
-                mobility.accessPoints = accessPoints
-            if mobility.stations == []: 
-                mobility.stations = stations
-            
-            nodes = []
-            nodes = mininetWiFi.plotNodes
-            
-            for ap in accessPoints:
-                if 'position' in ap.params:
-                    nodes.append(ap)
-                    
-            for sta in stations:
-                if 'position' in sta.params:
-                    nodes.append(sta)
-                
-            mininetWiFi.checkDimension(nodes)
 
         self.mn = mininet
         # Local variable bindings for py command
@@ -112,8 +83,8 @@ class CLI(Cmd):
         except ImportError:
             pass
         else:
-            history_path = os.path.expanduser('~/.mininet_history')
-            if os.path.isfile(history_path):
+            history_path = path.expanduser('~/.mininet_history')
+            if path.isfile(history_path):
                 read_history_file(history_path)
             atexit.register(lambda: write_history_file(history_path))
 
@@ -153,7 +124,7 @@ class CLI(Cmd):
         'You may also send a command to a node using:\n'
         '  <node> command {args}\n'
         'For example:\n'
-        '  mininet> h1 ifconfig\n'
+        '  mininet> h1 ip addr\n'
         '\n'
         'The interpreter automatically substitutes IP addresses\n'
         'for node names when a node is the first arg, so commands\n'
@@ -279,13 +250,13 @@ class CLI(Cmd):
                 self.mn.iperf(hosts, l4Type='UDP', udpBw=udpBw)
         else:
             error('invalid number of args: iperfudp bw src dst\n' +
-                   'bw examples: 10M\n')
+                  'bw examples: 10M\n')
 
     def do_intfs(self, _line):
         "List interfaces."
         for node in self.mn.values():
-            output('%s: %s\n' %
-                    (node.name, ','.join(node.intfNames())))
+            output('%s: %s\n'
+                   % (node.name, ','.join(node.intfNames())))
 
     def do_dump(self, _line):
         "Dump node info."
@@ -398,7 +369,8 @@ class CLI(Cmd):
         if len(args) < 1:
             error('usage: dpctl command [arg1] [arg2] ...\n')
             return
-        for sw in self.mn.switches:
+        nodesL2 = self.mn.switches + self.mn.accessPoints
+        for sw in nodesL2:
             output('*** ' + sw.name + ' ' + ('-' * 72) + '\n')
             output(sw.dpctl(*args))
 
@@ -419,7 +391,7 @@ class CLI(Cmd):
         args = line.split()
         if len(args) != 2:
             error('invalid number of args: switch <switch name>'
-                   '{start, stop}\n')
+                  '{start, stop}\n')
             return
         sw = args[ 0 ]
         command = args[ 1 ]
@@ -434,19 +406,20 @@ class CLI(Cmd):
                 self.mn.get(sw).stop(deleteIntfs=False)
             else:
                 error('invalid command: '
-                       'switch <switch name> {start, stop}\n')
+                      'switch <switch name> {start, stop}\n')
 
     def default(self, line):
         """Called on an input line when the command prefix is not recognized.
-        Overridden to run shell commands when a node is the first CLI argument.
-        Past the first CLI argument, node names are automatically replaced with
-        corresponding IP addrs."""
+           Overridden to run shell commands when a node is the first 
+           CLI argument. Past the first CLI argument, node names are 
+           automatically replaced with corresponding IP addrs."""
 
         first, args, line = self.parseline(line)
 
         if first in self.mn:
             if not args:
-                print "*** Enter a command for node: %s <cmd>" % first
+                error( '*** Please enter a command for node: %s <cmd>\n'
+                       % first )
                 return
             node = self.mn[ first ]
             rest = args.split(' ')

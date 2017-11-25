@@ -1,14 +1,13 @@
-from mininet.wifiChannel import setChannelParams
 from mininet.log import debug
 
 class associationControl (object):
 
     changeAP = False
 
-    def __init__(self, sta, ap, wlan, ac):
-        self.customAssociationControl(sta, ap, wlan, ac)
+    def __init__(self, sta, ap, wlan, ac, wirelessLink):
+        self.customAssociationControl(sta, ap, wlan, ac, wirelessLink)
 
-    def customAssociationControl(self, sta, ap, wlan, ac):
+    def customAssociationControl(self, sta, ap, wlan, ac, wirelessLink):
         """Mechanisms that optimize the use of the APs
         llf: Least-loaded-first
         ssf: Strongest-signal-first"""
@@ -23,10 +22,12 @@ class associationControl (object):
             else:
                 self.changeAP = True
         elif ac == "ssf":
-            distance = setChannelParams.getDistance(sta, sta.params['associatedTo'][wlan])
-            RSSI = setChannelParams.setRSSI(sta, sta.params['associatedTo'][wlan], wlan, distance)
-            refDistance = setChannelParams.getDistance(sta, ap)
-            refRSSI = setChannelParams.setRSSI(sta, ap, wlan, refDistance)
+            distance = wirelessLink.getDistance(sta,
+                                                sta.params['associatedTo'][wlan])
+            RSSI = wirelessLink.setRSSI(sta, sta.params['associatedTo'][wlan],
+                                        wlan, distance)
+            refDistance = wirelessLink.getDistance(sta, ap)
+            refRSSI = wirelessLink.setRSSI(sta, ap, wlan, refDistance)
             if float(refRSSI) > float(RSSI + 0.1):
                 debug('iw dev %s disconnect' % sta.params['wlan'][wlan])
                 sta.pexec('iw dev %s disconnect' % sta.params['wlan'][wlan])
