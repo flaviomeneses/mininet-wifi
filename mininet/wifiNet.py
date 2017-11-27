@@ -865,7 +865,7 @@ class mininetWiFi(object):
     def configureAPs(cls, aps, driver):
         """Configure All APs
         
-        :param accessPoints: list of access points
+        :param aps: list of access points
         """
         for ap in aps:
             if 'vssids' in ap.params:
@@ -1161,8 +1161,8 @@ class mininetWiFi(object):
     def plotCheck(cls, stations, aps, other_nodes):
         "Check which nodes will be plotted"
         stas, aps = cls.checkAPAdhoc(stations, aps)
-        if mobility.accessPoints == []:
-            mobility.accessPoints = aps
+        if mobility.aps == []:
+            mobility.aps = aps
         if mobility.stations == []:
             mobility.stations = stations
 
@@ -1222,7 +1222,7 @@ class mininetWiFi(object):
                         mobility.adhocNodes.append(node)
             for node in nodes:
                 if 'position' in node.params and 'link' not in node.params:
-                    mobility.accessPoints = aps
+                    mobility.aps = aps
                     mobility.parameters_(node)
 
             for sta in stations:

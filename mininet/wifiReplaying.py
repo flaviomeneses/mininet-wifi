@@ -123,7 +123,7 @@ class replayingMobility(object):
                 node.params['position'] = position[0].split(',')
             mobility.stations.append(node)
         elif node.type == 'ap':
-            mobility.accessPoints.append(node)
+            mobility.aps.append(node)
 
 
 class replayingBandwidth(object):
@@ -220,7 +220,7 @@ class replayingNetworkBehavior(object):
         if node.type == 'station':
             mobility.stations.append(node)
         elif node.type == 'ap':
-            mobility.accessPoints.append(node)
+            mobility.aps.append(node)
 
 
 class replayingRSSI(object):
