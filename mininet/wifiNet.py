@@ -1092,7 +1092,7 @@ class mininetWiFi(object):
 
         for car in mininet.cars:
             # useful if there no link between sta and any other device
-            params = {'nextIP': mininet.nextIP, 'ipBaseNum':self.ipBaseNum,
+            params = {'nextIP': mininet.nextIP, 'ipBaseNum':mininet.ipBaseNum,
                       'prefixLen':mininet.prefixLen, 'ssid':car.params['ssid']}
             if 'func' in car.params and car.params['func'] == 'adhoc':
                 cls.addHoc(car.params['carsta'], **params)
