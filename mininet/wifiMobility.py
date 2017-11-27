@@ -582,10 +582,6 @@ class mobility(object):
     @classmethod
     def parameters(cls):
         "Applies channel params and handover"
-        if WmediumdServerConn.interference_enabled and cls.meshNodes != []:
-            for node in cls.meshNodes:
-                for wlan in range(0, len(node.params['wlan'])):
-                    Association.meshAssociation(node, wlan)
         while True:
             cls.configureLinks(cls.mobileNodes)
 

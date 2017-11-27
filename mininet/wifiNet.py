@@ -1214,12 +1214,6 @@ class mininetWiFi(object):
         nodes = stations + ap
 
         if cls.nroads == 0:
-            for node in stations:
-                for wlan in range(0, len(node.params['wlan'])):
-                    if node.func[wlan] == 'mesh':
-                        mobility.meshNodes.append(node)
-                    elif node.func[wlan] == 'adhoc':
-                        mobility.adhocNodes.append(node)
             for node in nodes:
                 if 'position' in node.params and 'link' not in node.params:
                     mobility.aps = aps
