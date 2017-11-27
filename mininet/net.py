@@ -698,6 +698,8 @@ class Mininet(object):
                     wmediumd_mode = 'interference'
                 elif self.enable_error_prob:
                     wmediumd_mode = 'error_prob'
+                else:
+                    wmediumd_mode = None
                 cls = Association
                 cls.associate(sta, ap, self.enable_wmediumd,
                               wmediumd_mode)

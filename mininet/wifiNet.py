@@ -647,7 +647,9 @@ class mininetWiFi(object):
             mode = WmediumdConstants.WMEDIUMD_MODE_ERRPROB
             for node in cls.wlinks:
                 links.append(WmediumdERRPROBLink(node[0].wmIface[0], node[1].wmIface[0],
-                                             node[2]))
+                                                 node[2]))
+                links.append(WmediumdERRPROBLink(node[1].wmIface[0], node[0].wmIface[0],
+                                                 node[2]))
         else:
             mode = WmediumdConstants.WMEDIUMD_MODE_SNR
             for node in cls.wlinks:
