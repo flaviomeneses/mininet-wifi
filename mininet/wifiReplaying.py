@@ -24,7 +24,7 @@ def instantiateGraph(mininet):
     MAX_X = mininetWiFi.MAX_X
     MAX_Y = mininetWiFi.MAX_Y
     MAX_Z = mininetWiFi.MAX_Z
-    nodes = mininet.stations + mininet.accessPoints
+    nodes = mininet.stations + mininet.aps
     for node in nodes:
         replayingMobility.addNode(node)
 
@@ -51,14 +51,14 @@ class replayingMobility(object):
 
     def mobility(self, mininet, nodes):
         if nodes == None:
-            nodes = mininet.stations + mininet.accessPoints
+            nodes = mininet.stations + mininet.aps
         for node in nodes:
             if node.type == 'station':
                 if 'position' in node.params and node not in mobility.stations:
                     mobility.stations.append(node)
             if node.type == 'ap':
-                if 'position' in node.params and node not in mobility.accessPoints:
-                    mobility.accessPoints.append(node)
+                if 'position' in node.params and node not in mobility.aps:
+                    mobility.aps.append(node)
         if mininetWiFi.DRAW:
             instantiateGraph(mininet)
         if mininetWiFi.is3d:
