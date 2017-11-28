@@ -662,14 +662,7 @@ class mininetWiFi(object):
                                    enable_interference=cls.enable_interference,
                                    auto_add_links=False, txpowers=txpowers,
                                    with_server=True)
-        params = dict()
-        params['model'] = propagationModel.model
-        params['sL'] = propagationModel.sL
-        params['pL'] = propagationModel.pL
-        params['lF'] = propagationModel.lF
-        params['exp'] = propagationModel.exp
-        params['n_floors'] = propagationModel.nFloors
-        WmediumdStarter.start(**params)
+        WmediumdStarter.start(mininet, propagationModel)
 
     @classmethod
     def checkAPAdhoc(cls, stations, aps):

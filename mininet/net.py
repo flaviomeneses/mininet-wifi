@@ -117,7 +117,7 @@ from mininet.term import cleanUpScreens, makeTerms
 from mininet.wifiNet import mininetWiFi
 
 # Mininet version: should be consistent with README and LICENSE
-VERSION = "2.2"
+VERSION = "2.2.0d1"
 
 class Mininet(object):
     "Network emulation with hosts spawned in network namespaces."
@@ -134,7 +134,7 @@ class Mininet(object):
                  enable_error_prob=False, disableAutoAssociation=False,
                  driver='nl80211', autoSetPositions=False,
                  configureWiFiDirect=False, configure4addr=False,
-                 defaultGraph=False):
+                 defaultGraph=False, noise_threshold=-91, cca_threshold=-90):
         """Create Mininet object.
            topo: Topo (topology) object or None
            switch: default Switch class
@@ -198,6 +198,8 @@ class Mininet(object):
         self.mobilityKwargs = ''
         self._stopMobility = False
         self._startMobility = False
+        self.noise_threshold = noise_threshold
+        self.cca_threshold = cca_threshold
         self.configureWiFiDirect = configureWiFiDirect
         self.configure4addr = configure4addr
         self.enable_wmediumd = enable_wmediumd
@@ -1465,6 +1467,8 @@ class Mininet(object):
         
         :params model: propagation model
         """
+        kwargs['noise_threshold'] = self.noise_threshold
+        kwargs['cca_threshold'] = self.cca_threshold
         mininetWiFi.propagation_model(model, **kwargs)
 
     @classmethod

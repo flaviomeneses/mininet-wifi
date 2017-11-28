@@ -315,7 +315,7 @@ class WmediumdStarter(object):
         WmediumdServerConn.interference_enabled = enable_interference
 
     @classmethod
-    def start(cls, **params):
+    def start(cls, mininet, propagation_params):
         """
         Start wmediumd, this method should be called right after
         Mininet.configureWifiNodes()
@@ -324,6 +324,7 @@ class WmediumdStarter(object):
         called and some scripts may use some kind of a cache (eg. iw station
         dump)
         """
+        params = propagation_params
         if not cls.is_initialized:
             raise WmediumdException("Use WmediumdStarter.initialize first "
                                     "to set the required data")
@@ -421,24 +422,24 @@ class WmediumdStarter(object):
                         first_txpower = False
                     else:
                         configstr += ', %s' % txpower
-                if params['model'] == 'ITUPropagationLossModel':
+                if params.model == 'ITUPropagationLossModel':
                     configstr += ');\n\tmodel_name = "itu";\n\tnFLOORS = %d;' \
                                  '\n\tlF = %d;\n\tpL = %d;\n};' % \
-                                 (params['n_floors'], params['lF'], params['pL'])
-                elif params['model'] == 'logDistancePropagationLossModel':
+                                 (params.nFloors, params.lF, params.pL)
+                elif params.model == 'logDistancePropagationLossModel':
                     configstr += ');\n\tmodel_name = "log_distance";' \
                                  '\n\tpath_loss_exp = %.1f;\n\txg = 0.0;\n};' \
-                                 % params['exp']
-                elif params['model'] == 'twoRayGroundPropagationLossModel':
+                                 % params.exp
+                elif params.model == 'twoRayGroundPropagationLossModel':
                     configstr += ');\n\tmodel_name = "two_ray_ground";' \
-                                 '\n\tsL = %d;\n};' % params['sL']
-                elif params['model'] == 'logNormalShadowingPropagationLossModel':
+                                 '\n\tsL = %d;\n};' % params.sL
+                elif params.model == 'logNormalShadowingPropagationLossModel':
                     configstr += ');\n\tmodel_name = "log_normal_shadowing";' \
                                  '\n\tpath_loss_exp = %.1f;\n\tsL = %d;\n};' \
-                                 % (params['exp'], params['sL'])
+                                 % (params.exp, params.sL)
                 else:
                     configstr += ');\n\tmodel_name = "free_space";\n\tsL = %d;\n};' \
-                                 % params['sL']
+                                 % params.sL
 
             else:
                 configstr += '\n\t];\n};\nmodel:\n{\n\ttype = "'

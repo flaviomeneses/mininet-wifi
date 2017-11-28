@@ -28,6 +28,8 @@ class propagationModel(object):
     nFloors = 0  # Number of floors
     gRandom = 0  # Gaussian random variable
     variance = 2 # variance
+    noise_threshold = -91
+    cca_threshold = -90
 
     def __init__(self, node1=None, node2=None, dist=0, wlan=0):
         if self.model in dir(self):
@@ -49,6 +51,10 @@ class propagationModel(object):
             cls.exp = kwargs['nFloors']
         if 'variance' in kwargs:
             cls.exp = kwargs['variance']
+        if 'noise_threshold' in kwargs:
+            cls.noise_threshold = kwargs['noise_threshold']
+        if 'cca_threshold' in kwargs:
+            cls.cca_threshold = kwargs['cca_threshold']
 
     def pathLoss(self, node1, dist, wlan):
         """Path Loss Model:
@@ -214,7 +220,6 @@ class distanceByPropagationModel(object):
     pL = 0  # Power Loss Coefficient
     nFloors = 0  # Number of floors
     gRandom = 0  # Gaussian random variable
-    NOISE_LEVEL = 92
 
     def __init__(self, node=None, wlan=0, enable_interference=False):
         self.lF = propagationModel.lF
@@ -246,7 +251,7 @@ class distanceByPropagationModel(object):
 
         lambda_ = c / f  # lambda: wavelength (m)
         denominator = lambda_ ** 2
-        self.dist = math.pow(10, ((self.NOISE_LEVEL + gains +
+        self.dist = math.pow(10, ((-propagationModel.noise_threshold + gains +
                                    10 * math.log10(denominator)) /
                                   10 - math.log10((4 * math.pi) ** 2 * L)) / (2))
 
@@ -282,7 +287,7 @@ class distanceByPropagationModel(object):
         gains = txpower + (antGain * 2)
 
         pathLoss = self.pathLoss(kwargs['node'], referenceDistance, kwargs['wlan'])
-        self.dist = math.pow(10, ((self.NOISE_LEVEL - pathLoss + gains) /
+        self.dist = math.pow(10, ((-propagationModel.noise_threshold - pathLoss + gains) /
                                   (10 * self.exp))) * referenceDistance
 
         return self.dist
@@ -309,7 +314,7 @@ class distanceByPropagationModel(object):
 
         pathLoss = self.pathLoss(kwargs['node'], referenceDistance,
                                  kwargs['wlan']) - gRandom
-        self.dist = math.pow(10, ((self.NOISE_LEVEL - pathLoss + gains) /
+        self.dist = math.pow(10, ((-propagationModel.noise_threshold - pathLoss + gains) /
                                   (10 * self.exp))) * referenceDistance
 
         return self.dist
@@ -323,7 +328,7 @@ class distanceByPropagationModel(object):
         N = 28  # Power Loss Coefficient
         lF = self.lF  # Floor penetration loss factor
         nFloors = self.nFloors  # Number of Floors
-        self.dist = math.pow(10, ((self.NOISE_LEVEL + gains -
+        self.dist = math.pow(10, ((-propagationModel.noise_threshold + gains -
                                    20 * math.log10(f) - lF * nFloors + 28)/N))
 
         return self.dist
