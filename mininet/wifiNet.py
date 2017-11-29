@@ -1222,13 +1222,15 @@ class mininetWiFi(object):
                                 mobility.handover(sta, ap, wlan)
 
     @classmethod
-    def propagation_model(cls, model, **kwargs):
+    def propagation_model(cls, **kwargs):
         """
         Attributes for Propagation Model
 
         :params model: propagation model
         """
-        propagationModel.setAttr(model, **kwargs)
+        if 'model' not in kwargs:
+            kwargs['model'] = 'logDistance'
+        propagationModel.setAttr(**kwargs)
 
     @classmethod
     def getDistance(cls, src, dst):

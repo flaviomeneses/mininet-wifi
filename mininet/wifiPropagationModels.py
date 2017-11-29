@@ -20,7 +20,7 @@ class propagationModel(object):
     """ Propagation Models """
 
     rssi = -62
-    model = 'logDistance'
+    model = ''
     exp = 3  # Exponent
     sL = 1  # System Loss
     lF = 0  # Floor penetration loss factor
@@ -37,7 +37,7 @@ class propagationModel(object):
                                               dist=dist, wlan=wlan)
 
     @classmethod
-    def setAttr(cls, model, **kwargs):
+    def setAttr(cls, **kwargs):
         cls.model = kwargs['model']
         if 'exp' in kwargs:
             cls.exp = kwargs['exp']
