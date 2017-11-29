@@ -422,18 +422,18 @@ class WmediumdStarter(object):
                         first_txpower = False
                     else:
                         configstr += ', %s' % txpower
-                if ppm.model == 'ITUPropagationLossModel':
+                if ppm.model == 'ITU':
                     configstr += ');\n\tmodel_name = "itu";\n\tnFLOORS = %d;' \
                                  '\n\tlF = %d;\n\tpL = %d;\n};' % \
                                  (ppm.nFloors, ppm.lF, ppm.pL)
-                elif ppm.model == 'logDistancePropagationLossModel':
+                elif ppm.model == 'logDistance':
                     configstr += ');\n\tmodel_name = "log_distance";' \
                                  '\n\tpath_loss_exp = %.1f;\n\txg = 0.0;\n};' \
                                  % ppm.exp
-                elif ppm.model == 'twoRayGroundPropagationLossModel':
+                elif ppm.model == 'twoRayGround':
                     configstr += ');\n\tmodel_name = "two_ray_ground";' \
                                  '\n\tsL = %d;\n};' % ppm.sL
-                elif ppm.model == 'logNormalShadowingPropagationLossModel':
+                elif ppm.model == 'logNormalShadowing':
                     configstr += ');\n\tmodel_name = "log_normal_shadowing";' \
                                  '\n\tpath_loss_exp = %.1f;\n\tsL = %d;\n};' \
                                  % (ppm.exp, ppm.sL)

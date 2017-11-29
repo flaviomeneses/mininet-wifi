@@ -48,6 +48,7 @@ class mininetWiFi(object):
     isWiFi = False
     plot = plot2d
     enable_wmediumd = False
+    ppm_is_set = False
     init_time = 0
     wifiRadios = 0
     seed_ = 10
@@ -1227,7 +1228,6 @@ class mininetWiFi(object):
 
         :params model: propagation model
         """
-        cls.prop_model_name = model
         propagationModel.setAttr(model, **kwargs)
 
     @classmethod

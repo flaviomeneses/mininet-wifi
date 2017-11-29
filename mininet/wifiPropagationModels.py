@@ -20,7 +20,7 @@ class propagationModel(object):
     """ Propagation Models """
 
     rssi = -62
-    model = 'logDistancePropagationLossModel'
+    model = 'logDistance'
     exp = 3  # Exponent
     sL = 1  # System Loss
     lF = 0  # Floor penetration loss factor
@@ -38,7 +38,7 @@ class propagationModel(object):
 
     @classmethod
     def setAttr(cls, model, **kwargs):
-        cls.model = model
+        cls.model = kwargs['model']
         if 'exp' in kwargs:
             cls.exp = kwargs['exp']
         if 'sL' in kwargs:
@@ -76,7 +76,7 @@ class propagationModel(object):
 
         return int(pathLoss_)
 
-    def friisPropagationLossModel(self, **kwargs):
+    def friis(self, **kwargs):
         """Friis Propagation Loss Model:
         (f) signal frequency transmited(Hz)
         (d) is the distance between the transmitter and the receiver (m)
@@ -92,7 +92,7 @@ class propagationModel(object):
 
         return self.rssi
 
-    def twoRayGroundPropagationLossModel(self, **kwargs):
+    def twoRayGround(self, **kwargs):
         """Two Ray Ground Propagation Loss Model (does not give a good result for
         a short distance)"""
         gr = kwargs['node1'].params['antennaGain'][kwargs['wlan']]
@@ -112,7 +112,7 @@ class propagationModel(object):
 
         return self.rssi
 
-    def logDistancePropagationLossModel(self, **kwargs):
+    def logDistance(self, **kwargs):
         """Log Distance Propagation Loss Model:
         ref_dist (m): The distance at which the reference loss is
         calculated
@@ -135,7 +135,7 @@ class propagationModel(object):
 
         return self.rssi
 
-    def logNormalShadowingPropagationLossModel(self, **kwargs):
+    def logNormalShadowing(self, **kwargs):
         """Log-Normal Shadowing Propagation Loss Model:
         ref_dist (m): The distance at which the reference loss is
         calculated
@@ -161,7 +161,7 @@ class propagationModel(object):
 
         return self.rssi
 
-    def ITUPropagationLossModel(self, **kwargs):
+    def ITU(self, **kwargs):
         """International Telecommunication Union (ITU) Propagation Loss Model:"""
         gr = kwargs['node1'].params['antennaGain'][kwargs['wlan']]
         pt = kwargs['node2'].params['txpower'][0]
@@ -190,7 +190,7 @@ class propagationModel(object):
 
         return self.rssi
 
-    def youngModel(self, **kwargs):
+    def young(self, **kwargs):
         "Young Propagation Loss Model"
         gr = kwargs['node1'].params['antennaGain'][kwargs['wlan']]
         hr = kwargs['node1'].params['antennaHeight'][kwargs['wlan']]
@@ -218,7 +218,7 @@ class distanceByPropagationModel(object):
             self.__getattribute__(ppm.model)(node=node, wlan=wlan,
                                          interference=enable_interference)
 
-    def friisPropagationLossModel(self, **kwargs):
+    def friis(self, **kwargs):
         """Path Loss Model:
         (f) signal frequency transmited(Hz)
         (c) speed of light in vacuum (m)
@@ -256,7 +256,7 @@ class distanceByPropagationModel(object):
 
         return pathLoss_
 
-    def logDistancePropagationLossModel(self, **kwargs):
+    def logDistance(self, **kwargs):
         """Log Distance Propagation Loss Model:
         ref_dist (m): The distance at which the reference loss is
         calculated
@@ -274,7 +274,7 @@ class distanceByPropagationModel(object):
 
         return self.dist
     
-    def logNormalShadowingPropagationLossModel(self, **kwargs):
+    def logNormalShadowing(self, **kwargs):
         """Log-Normal Shadowing Propagation Loss Model"""
         from mininet.wmediumdConnector import WmediumdGaussianRandom, \
             WmediumdServerConn
@@ -301,7 +301,7 @@ class distanceByPropagationModel(object):
 
         return self.dist
 
-    def ITUPropagationLossModel(self, **kwargs):
+    def ITU(self, **kwargs):
         """International Telecommunication Union (ITU) Propagation Loss Model:"""
         f = kwargs['node'].params['frequency'][kwargs['wlan']] * 10 ** 3
         txpower = kwargs['node'].params['txpower'][kwargs['wlan']]
@@ -326,7 +326,7 @@ class powerForRangeByPropagationModel(object):
             self.__getattribute__(ppm.model)(node=node, wlan=wlan, dist=dist,
                                          interference=enable_interference)
 
-    def friisPropagationLossModel(self, **kwargs):
+    def friis(self, **kwargs):
         """Path Loss Model:
         distance is the range of the transmitter (m)
         (f) signal frequency transmited(Hz)
@@ -367,7 +367,7 @@ class powerForRangeByPropagationModel(object):
 
         return pathLoss_
 
-    def logDistancePropagationLossModel(self, **kwargs):
+    def logDistance(self, **kwargs):
         """Log Distance Propagation Loss Model:
         ref_dist (m): The distance at which the reference loss is
         calculated
@@ -389,7 +389,7 @@ class powerForRangeByPropagationModel(object):
 
         return self.txpower
 
-    def logNormalShadowingPropagationLossModel(self, **kwargs):
+    def logNormalShadowing(self, **kwargs):
         """Log-Normal Shadowing Propagation Loss Model
         distance is the range of the transmitter (m)"""
         from mininet.wmediumdConnector import WmediumdGaussianRandom, \
@@ -418,7 +418,7 @@ class powerForRangeByPropagationModel(object):
 
         return self.txpower
 
-    def ITUPropagationLossModel(self, **kwargs):
+    def ITU(self, **kwargs):
         """International Telecommunication Union (ITU) Propagation Loss Model:
         distance is the range of the transmitter (m)"""
         f = kwargs['node'].params['frequency'][kwargs['wlan']] * 10 ** 3
