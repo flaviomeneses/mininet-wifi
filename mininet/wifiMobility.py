@@ -335,8 +335,8 @@ class mobility(object):
         node.points = node.points + points
 
     @classmethod
-    def controlled_mobility(cls, init_time=0, final_time=0, stations=None,
-                            aps=None, connections=[], plotNodes=[], MIN_X=0,
+    def controlled_mobility(cls, init_time=0, final_time=0, stations=[],
+                            aps=[], connections=[], plotNodes=[], MIN_X=0,
                             MIN_Y=0, MIN_Z=0, MAX_X=0, MAX_Y=0, MAX_Z=0, AC='',
                             is3d=False, DRAW=False, repetitions=1, **params):
         """
@@ -392,7 +392,7 @@ class mobility(object):
                                      float(coord_[1].split(',')[2]))
 
             for rep in range(0, repetitions):
-                current_time = time()
+                t1 = time()
                 i = 1
                 if rep > 0:
                     for node in nodes:
@@ -402,11 +402,12 @@ class mobility(object):
                     node.time = node.startTime
                     cls.calculate_diff_time(node)
                 while True:
-                    if (time() - current_time) > final_time or (time() - current_time) < init_time:
-                        break
-                    if time() - current_time >= i:
+                    t2 = time()
+                    if (t2 - t1) > final_time or (t2 - t1) < init_time:
+                        pass
+                    if t2 - t1 >= i:
                         for node in cls.mobileNodes:
-                            if (time() - current_time) >= node.startTime and node.time <= node.endTime:
+                            if (t2 - t1) >= node.startTime and node.time <= node.endTime:
                                 if hasattr(node, 'coord'):
                                     cls.calculate_diff_time(node)
                                     node.params['position'] = node.points[node.time * node.moveFac]
@@ -448,7 +449,7 @@ class mobility(object):
         cls.mobileNodes = cls.stations
 
     @classmethod
-    def models(cls, stations=None, aps=None, model=None, stationaryNodes=[],
+    def models(cls, stations=[], aps=[], model=None, stationaryNodes=[],
                min_v=0, max_v=0, seed=None, connections=None, plotNodes=[],
                MAX_X=0, MAX_Y=0, AC='', DRAW=False, **params):
         """
