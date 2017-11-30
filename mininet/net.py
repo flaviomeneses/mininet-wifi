@@ -925,7 +925,7 @@ class Mininet(object):
             mininetWiFi.autoAssociation(self.stations, self.aps)
 
         if self.isMobility:
-            if self.isMobilityModel:
+            if self.isMobilityModel or mininetWiFi.isVanet:
                 mininetWiFi.start_mobility(**self.mobilityKwargs)
             else:
                 self.mobilityKwargs['plotNodes'] = self.plot_nodes()

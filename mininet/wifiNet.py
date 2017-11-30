@@ -990,7 +990,7 @@ class mininetWiFi(object):
         if 'plotNodes' in kwargs:
             cls.mobilityparam.setdefault('plotNodes', kwargs['plotNodes'])
 
-        if 'model' in kwargs or cls.isVanet:
+        if 'model' in kwargs:
             stations = kwargs['stations']
             aps = kwargs['aps']
             if 'min_x' in kwargs:
