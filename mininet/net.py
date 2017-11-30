@@ -207,7 +207,7 @@ class Mininet(object):
         self.enable_error_prob = enable_error_prob
         self.enable_interference = enable_interference
         self.enable_spec_prob_link = enable_spec_prob_link
-        mininetWiFi.isWiFi = isWiFi
+        self.isWiFi = isWiFi
         Mininet.init()  # Initialize Mininet if necessary
 
         if defaultGraph:
@@ -874,7 +874,7 @@ class Mininet(object):
                 self.addSwitch(switchName, **params)
             info(switchName + ' ')
 
-        if mininetWiFi.isWiFi:
+        if self.isWiFi:
             info('\n*** Configuring wifi nodes...\n')
             self.configureWifiNodes()
 
@@ -919,7 +919,7 @@ class Mininet(object):
                         node.params['range'][wlan] = \
                                 int(node.params['range'][wlan])/5
 
-        if mininetWiFi.isWiFi and not self.disableAutoAssociation \
+        if self.isWiFi and not self.disableAutoAssociation \
                 and not mininetWiFi.isMobility:
             mininetWiFi.autoAssociation(self.stations, self.aps)
 
@@ -1020,7 +1020,7 @@ class Mininet(object):
         mininetWiFi.nroads = nroads
 
     def stop(self):
-        if mininetWiFi.isWiFi:
+        if self.isWiFi:
             mininetWiFi.stopGraphParams()
         info('*** Stopping %i controllers\n' % len(self.controllers))
         for controller in self.controllers:
@@ -1058,7 +1058,7 @@ class Mininet(object):
         info('\n')
         if self.aps is not []:
             mininetWiFi.kill_hostapd()
-        if mininetWiFi.isWiFi:
+        if self.isWiFi:
             mininetWiFi.closeMininetWiFi()
         if self.enable_wmediumd:
             mininetWiFi.kill_wmediumd()
@@ -1222,11 +1222,15 @@ class Mininet(object):
     def pingAll(self, timeout=None):
         """Ping between all hosts.
            returns: ploss packet loss percentage"""
+        if self.isWiFi:
+            sleep(1)
         return self.ping(timeout=timeout)
 
     def pingPair(self):
         """Ping between first two hosts, useful for testing.
            returns: ploss packet loss percentage"""
+        if self.isWiFi:
+            sleep(1)
         nodes = self.hosts + self.stations
         hosts = [ nodes[ 0 ], nodes[ 1 ] ]
         return self.ping(hosts=hosts)
@@ -1234,11 +1238,15 @@ class Mininet(object):
     def pingAllFull(self):
         """Ping between all hosts.
            returns: ploss packet loss percentage"""
+        if self.isWiFi:
+            sleep(1)
         return self.pingFull()
 
     def pingPairFull(self):
         """Ping between first two hosts, useful for testing.
            returns: ploss packet loss percentage"""
+        if self.isWiFi:
+            sleep(1)
         nodes = self.hosts + self.stations
         hosts = [ nodes[ 0 ], nodes[ 1 ] ]
         return self.pingFull(hosts=hosts)
@@ -1270,6 +1278,8 @@ class Mininet(object):
            note: send() is buffered, so client rate can be much higher than
            the actual transmission rate; on an unloaded system, server
            rate should be much closer to the actual receive rate"""
+        if self.isWiFi:
+            sleep(1)
         nodes = self.hosts + self.stations
         hosts = hosts or [ nodes[ 0 ], nodes[ -1 ] ]
         assert len(hosts) == 2
