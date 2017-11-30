@@ -781,6 +781,7 @@ class Mininet(object):
 
     def configureWifiNodes(self):
         "Configure WiFi Nodes"
+        self.isWiFi = True
         if not self.ppm_is_set:
             self.propagationModel()
         self.stations, self.aps = mininetWiFi.configureWifiNodes(self)
