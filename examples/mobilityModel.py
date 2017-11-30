@@ -23,7 +23,7 @@ def topology():
     print "*** Configuring wifi nodes"
     net.configureWifiNodes()
 
-    net.plotGraph(max_x=100, max_y=100)
+    #net.plotGraph(max_x=100, max_y=100)
 
     net.seed(20)
 
