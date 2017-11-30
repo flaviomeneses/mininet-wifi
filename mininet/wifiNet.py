@@ -941,20 +941,13 @@ class mininetWiFi(object):
             cls.DRAW = False
 
     @classmethod
-    def start_mobility(cls, stations, aps, **kwargs):
+    def start_mobility(cls, **kwargs):
         "Starts Mobility"
-        mobility_model = ''
         cls.isMobility = True
 
-        if 'model' in kwargs:
-            mobility_model = kwargs['model']
-
-        if 'AC' in kwargs:
-            cls.AC = kwargs['AC']
-
-        if mobility_model != '' or cls.isVanet:
+        if 'model' in kwargs or cls.isVanet:
             stationaryNodes = []
-            for sta in stations:
+            for sta in kwargs['stations']:
                 if 'position' not in sta.params \
                         or 'position' in sta.params \
                                 and sta.params['position'] == (-1,-1,-1):
@@ -962,8 +955,6 @@ class mininetWiFi(object):
                     stationaryNodes.append(sta)
                     sta.params['position'] = 0, 0, 0
             kwargs['stationaryNodes'] = stationaryNodes
-            kwargs['stations'] = stations
-            kwargs['aps'] = aps
             params = cls.setMobilityParams(**kwargs)
             if cls.nroads == 0:
                 mobility.start(**params)
