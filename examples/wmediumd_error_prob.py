@@ -34,7 +34,7 @@ def topology():
     net.addLink(sta2, ap1, error_prob=0.02)
     net.addLink(sta3, ap1, error_prob=1)
 
-    net.plotGraph(max_x=100, max_y=100)
+    #net.plotGraph(max_x=100, max_y=100)
 
     print "*** Starting network"
     net.build()
